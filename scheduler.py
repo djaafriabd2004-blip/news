@@ -2,6 +2,8 @@ import os
 import time
 import sys
 import random
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
@@ -13,6 +15,26 @@ from ai_poster import main as run_poster
 
 # تحميل متغيرات البيئة
 load_dotenv()
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"OK")
+        
+    def log_message(self, format, *args):
+        # لمنع إغراق السجلات بطلبات فحص الصحة من الاستضافة
+        pass
+
+def run_health_server():
+    port = int(os.getenv("PORT", 8080))
+    try:
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        print(f"[*] بدء خادم فحص الصحة على المنفذ: {port}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"[-] خطأ أثناء تشغيل خادم فحص الصحة: {e}")
 
 # نمط الجدولة المختار:
 # 1. 'interval': نشر دوري كل X ثانية (مثالي للنشر المتقارب مثل كل نصف ساعة).
@@ -79,6 +101,11 @@ def start_scheduler():
             sys.stderr.reconfigure(encoding='utf-8')
         except AttributeError:
             pass
+
+    # تشغيل خادم فحص الصحة في خلفية مستقلة لمنع إعادة تشغيل Railway للحاوية
+    if os.getenv("PORT") or os.getenv("RAILWAY_STATIC_URL"):
+        t = threading.Thread(target=run_health_server, daemon=True)
+        t.start()
 
     print("="*60)
     print("  بدء تشغيل جدولة النشر التلقائي للذكاء الاصطناعي على الاستضافة")
