@@ -347,8 +347,12 @@ def main():
     # تحديد نوع المنشور
     post_type = args.type
     if post_type == "random":
-        post_type = random.choice(["gainers", "losers", "news", "tips", "alpha"])
-        print(f"[*] تم اختيار نوع المنشور عشوائياً: [{post_type}] لتنويع المحتوى اليومي.")
+        # إعطاء أولوية عظمى (80%) لمنشورات حركة وحالة العملات (gainers, losers, alpha)
+        # وإعطاء 20% فقط للأخبار العامة والنصائح التفاعلية
+        types = ["gainers", "losers", "alpha", "news", "tips"]
+        weights = [30, 30, 20, 10, 10]
+        post_type = random.choices(types, weights=weights, k=1)[0]
+        print(f"[*] تم اختيار نوع المنشور عشوائياً بوزن نسبي: [{post_type}] لتنويع المحتوى.")
         
     # توليد المحتوى
     post_content = generate_post_content(post_type)
