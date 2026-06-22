@@ -159,6 +159,33 @@ def get_latest_news(limit=3):
         print(f"[-] خطأ أثناء جلب الأخبار: {e}")
         return []
 
+def get_trending_alpha(limit=4):
+    """
+    جلب عملات الألفا (العملات الأكثر بحثاً ورواجاً حالياً على CoinGecko).
+    وهي تمثل العملات التي تشهد اهتماماً اجتماعياً ضخماً وحركة قوية.
+    """
+    print("[*] جاري جلب عملات الألفا الأكثر رواجاً من CoinGecko...")
+    url = "https://api.coingecko.com/api/v3/search/trending"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        coins_data = response.json().get("coins", [])
+        
+        alpha_coins = []
+        for c in coins_data[:limit]:
+            item = c.get("item", {})
+            symbol = item.get("symbol", "").upper()
+            name = item.get("name", "")
+            alpha_coins.append({
+                "symbol": symbol,
+                "name": name
+            })
+        return alpha_coins
+    except Exception as e:
+        print(f"[-] خطأ أثناء جلب عملات الألفا من CoinGecko: {e}")
+        return []
+
 def generate_post_content(post_type):
     """
     توليد نص المنشور بواسطة الذكاء الاصطناعي حسب النوع المحدد.
@@ -233,6 +260,20 @@ def generate_post_content(post_type):
 تحدث بأسلوب المتداول الذي عاش هذه المعاناة، واجعل المنشور قريباً جداً من قلوب ومشاعر المتداولين مع إشارة لعملة كبرى مثل $BTC أو $SOL.
 """
 
+    elif post_type == "alpha":
+        alpha_list = get_trending_alpha(limit=4)
+        if not alpha_list:
+            return None
+        alpha_text = ", ".join([
+            f"${a['symbol']} ({a['name']})"
+            for a in alpha_list
+        ])
+        prompt = f"""
+عملات الألفا الأكثر بحثاً واهتماماً (Trending Search) حالياً في مجتمع الكريبتو هي: {alpha_text}.
+اكتب منشوراً جريئاً ونارياً كمتداول فيوتشرز محترف يعلق على سبب توجه الأنظار والبحث العنيف نحو هذه العملات بالذات.
+هل تعتقد أنها فرصة ألفا حقيقية للشراء الفوري أم مجرد تضخيم وتصريف (Hype/Pump) لتصفية المتسرعين؟ اذكر عملات كبرى مثل $BTC أو $SOL تزامناً مع التعليق.
+"""
+
     try:
         client = OpenAI(api_key=AI_API_KEY, base_url=BASE_URL)
         response = client.chat.completions.create(
@@ -297,7 +338,7 @@ def main():
     )
     parser.add_argument(
         "--type",
-        choices=["gainers", "losers", "news", "tips", "random"],
+        choices=["gainers", "losers", "news", "tips", "alpha", "random"],
         default="random",
         help="نوع المحتوى المراد توليده ونشره (الافتراضي: اختيار عشوائي لتنويع المنشورات)"
     )
@@ -306,7 +347,7 @@ def main():
     # تحديد نوع المنشور
     post_type = args.type
     if post_type == "random":
-        post_type = random.choice(["gainers", "losers", "news", "tips"])
+        post_type = random.choice(["gainers", "losers", "news", "tips", "alpha"])
         print(f"[*] تم اختيار نوع المنشور عشوائياً: [{post_type}] لتنويع المحتوى اليومي.")
         
     # توليد المحتوى
