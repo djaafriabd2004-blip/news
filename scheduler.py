@@ -2,7 +2,7 @@ import os
 import time
 import sys
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 
 # إضافة المسار الحالي للمكتبات لضمان إمكانية الاستيراد
@@ -14,13 +14,63 @@ from ai_poster import main as run_poster
 # تحميل متغيرات البيئة
 load_dotenv()
 
-# المدة الافتراضية الأساسية بين المنشورات (2.4 ساعة = 8640 ثانية للحصول على 10 منشورات يومياً)
-INTERVAL_SECONDS = int(os.getenv("POST_INTERVAL_SECONDS", 8640))
+# إعدادات المنطقة الزمنية وأوقات الذروة
+TIMEZONE_OFFSET = int(os.getenv("TIMEZONE_OFFSET", 1)) # الافتراضي UTC+1 (توقيت المستخدم المحلي)
 
-# تفعيل التباعد العشوائي البشري (Human-like Jitter)
-# يقوم بإضافة أو طرح دقائق عشوائية لجعل أوقات النشر تبدو طبيعية وغير آلية تماماً
+# قائمة أوقات الذروة الافتراضية (10 أوقات موزعة على مدار اليوم حسب نشاط السوق)
+DEFAULT_PEAK_HOURS = "08:00,09:30,11:00,13:00,14:30,16:00,18:00,20:00,21:30,23:00"
+PEAK_HOURS_STR = os.getenv("PEAK_HOURS", DEFAULT_PEAK_HOURS)
+PEAK_HOURS = [h.strip() for h in PEAK_HOURS_STR.split(",") if h.strip()]
+
+# تفعيل التفاوت الزمني العشوائي البشري
 USE_JITTER = os.getenv("USE_JITTER", "True").lower() in ("true", "1", "yes")
-JITTER_MAX_SECONDS = int(os.getenv("JITTER_MAX_SECONDS", 900)) # 15 دقيقة كحد أقصى افتراضي
+JITTER_MAX_SECONDS = int(os.getenv("JITTER_MAX_SECONDS", 300)) # 5 دقائق كحد أقصى للحفاظ على دقة أوقات الذروة
+
+def get_user_local_time():
+    """
+    حساب الوقت الحالي بتوقيت المستخدم المحلي بناءً على فرق التوقيت المختار (Offset).
+    """
+    utc_now = datetime.now(timezone.utc)
+    return utc_now + timedelta(hours=TIMEZONE_OFFSET)
+
+def get_seconds_until_next_peak():
+    """
+    حساب عدد الثواني المتبقية حتى وقت الذروة القادم، ومعرفة موعد التشغيل القادم.
+    """
+    user_now = get_user_local_time()
+    
+    today_runs = []
+    for ph in PEAK_HOURS:
+        try:
+            hour, minute = map(int, ph.split(":"))
+            run_dt = user_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            today_runs.append(run_dt)
+        except Exception as e:
+            print(f"[-] خطأ في تنسيق وقت الذروة '{ph}': {e}")
+            
+    if not today_runs:
+        # حماية في حال حدوث خطأ في القائمة
+        print("[!] تحذير: لم يتم العثور على أوقات ذروة صالحة. سيتم استخدام تباعد افتراضي (ساعتين).")
+        return 7200, user_now + timedelta(hours=2)
+
+    today_runs.sort()
+    
+    # البحث عن وقت التشغيل القادم اليوم
+    next_run = None
+    for run_dt in today_runs:
+        if run_dt > user_now:
+            next_run = run_dt
+            break
+            
+    # إذا انتهت أوقات اليوم، فإن التشغيل القادم هو أول موعد غداً
+    if not next_run:
+        first_run = today_runs[0]
+        next_run = first_run + timedelta(days=1)
+        
+    delta = next_run - user_now
+    seconds_to_wait = delta.total_seconds()
+    
+    return seconds_to_wait, next_run
 
 def start_scheduler():
     # تهيئة الترميز للغة العربية
@@ -32,39 +82,52 @@ def start_scheduler():
             pass
 
     print("="*60)
-    print("  بدء تشغيل جدولة النشر التلقائي للذكاء الاصطناعي على الاستضافة")
-    print(f"  الفاصل الزمني الأساسي: كل {INTERVAL_SECONDS / 3600:.2f} ساعة")
+    print("  بدء تشغيل جدولة النشر التلقائي في أوقات الذروة (Peak Hours)")
+    print(f"  نطاق التوقيت المحلي للمستخدم: UTC+{TIMEZONE_OFFSET}")
+    print(f"  أوقات الذروة المحددة ({len(PEAK_HOURS)} أوقات): {', '.join(PEAK_HOURS)}")
     if USE_JITTER:
-        print(f"  وضع التباعد العشوائي نشط: تفاوت عشوائي يصل إلى ±{JITTER_MAX_SECONDS / 60:.1f} دقيقة لجعل النشر يبدو بشرياً.")
+        print(f"  تفاوت عشوائي نشط: تفاوت يصل إلى ±{JITTER_MAX_SECONDS / 60:.1f} دقيقة لمنع النمط الآلي.")
     print("="*60)
 
     try:
+        # تشغيل السكربت للمرة الأولى فور تشغيله لتأكيد عمله
+        print(f"\n[*] [{get_user_local_time().strftime('%H:%M:%S')}] تشغيل أولي للتحقق...")
+        try:
+            run_poster()
+        except Exception as e:
+            print(f"[-] خطأ أثناء التشغيل الأولي: {e}")
+
         while True:
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"\n[*] [{current_time}] بدء دورة النشر التلقائي الحالية...")
+            # 1. حساب الانتظار لوقت الذروة القادم
+            seconds_to_wait, next_run_dt = get_seconds_until_next_peak()
             
-            try:
-                # تشغيل السكربت ونشر منشور جديد
-                run_poster()
-                print(f"[+] [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] اكتملت دورة النشر بنجاح.")
-            except Exception as e:
-                print(f"[-] خطأ أثناء تشغيل عملية النشر: {e}")
-                
-            # حساب الفاصل الزمني الفعلي للدورة القادمة بإضافة التفاوت العشوائي
+            # تطبيق التفاوت العشوائي
             current_jitter = 0
             if USE_JITTER:
                 current_jitter = random.randint(-JITTER_MAX_SECONDS, JITTER_MAX_SECONDS)
                 
-            actual_wait = max(60, INTERVAL_SECONDS + current_jitter) # التأكد من عدم النزول عن دقيقة واحدة
+            actual_wait = max(10, seconds_to_wait + current_jitter)
+            actual_next_run = get_user_local_time() + timedelta(seconds=actual_wait)
             
-            # حساب موعد النشر القادم
-            next_run = datetime.now() + timedelta(seconds=actual_wait)
-            print(f"[*] تباعد عشوائي مطبق في هذه الدورة: {current_jitter/60:+.1f} دقيقة.")
-            print(f"[*] الانتظار قيد التشغيل لمدة {actual_wait/3600:.2f} ساعة. موعد النشر القادم: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"\n[*] الاستراحة قيد التشغيل للوصول لوقت الذروة القادم.")
+            print(f"[*] وقت الذروة المستهدف التالي: {next_run_dt.strftime('%H:%M:%S')}")
+            if USE_JITTER:
+                print(f"[*] التفاوت العشوائي المطبق: {current_jitter/60:+.1f} دقيقة.")
+            print(f"[*] الموعد الفعلي للنشر القادم: {actual_next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"[*] سيتم الانتظار لمدة {actual_wait/3600:.2f} ساعة ({actual_wait:,.0f} ثانية)...")
             
-            # النوم للمدة الفعالة
+            # الانتظار
             time.sleep(actual_wait)
             
+            # 2. الاستيقاظ والنشر
+            current_time = get_user_local_time().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"\n[*] [{current_time}] وصلنا لوقت الذروة! بدء عملية النشر...")
+            try:
+                run_poster()
+                print(f"[+] اكتملت عملية النشر بنجاح.")
+            except Exception as e:
+                print(f"[-] خطأ أثناء تشغيل عملية النشر: {e}")
+                
     except KeyboardInterrupt:
         print("\n[!] تم إيقاف المجدول بواسطة المستخدم. إغلاق.")
         sys.exit(0)
