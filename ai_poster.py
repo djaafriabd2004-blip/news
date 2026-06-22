@@ -43,15 +43,60 @@ VETERAN_SYSTEM_PROMPT = """
 - لا تقدم أي توصيات شراء أو بيع مباشرة أو استشارات مالية قانونية، بل تقدم محتوى تعليمياً وتوعوياً.
 """
 
+def get_trending_coincap(limit=5, get_losers=False):
+    """
+    جلب البيانات الحية لأسعار العملات البديلة من CoinCap API
+    تستخدم كبديل آمن لا يتأثر بالحظر الجغرافي لخوادم السحاب الأمريكية.
+    """
+    print("[*] جاري جلب الأسعار البديلة من CoinCap API...")
+    url = "https://api.coincap.io/v2/assets?limit=100"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json().get("data", [])
+        
+        # تحويل البيانات وترتيبها
+        formatted_assets = []
+        for asset in data:
+            try:
+                symbol = asset.get("symbol", "") + "USDT"
+                change = float(asset.get("changePercent24Hr", 0.0)) if asset.get("changePercent24Hr") else 0.0
+                price = float(asset.get("priceUsd", 0.0)) if asset.get("priceUsd") else 0.0
+                formatted_assets.append({
+                    "symbol": symbol,
+                    "priceChangePercentFloat": change,
+                    "lastPriceFloat": price
+                })
+            except ValueError:
+                continue
+                
+        # ترتيب العملات تنازلياً للصاعدة، وتصاعدياً للهابطة
+        formatted_assets.sort(key=lambda x: x["priceChangePercentFloat"], reverse=not get_losers)
+        
+        return formatted_assets[:limit]
+        
+    except Exception as e:
+        print(f"[-] خطأ أثناء جلب البيانات من CoinCap: {e}")
+        return []
+
 def get_trending_futures(limit=5, get_losers=False):
     """
     جلب البيانات الحية لـ Binance Futures (أفضل العملات صعوداً أو هبوطاً).
+    في حال كان الخادم في منطقة محظورة جغرافيًا (مثل خوادم أمريكا التي تعيد خطأ 451)، 
+    يتحول السكربت تلقائيًا لاستخدام CoinCap API كبديل آمن ومتاح.
     """
-    print(f"[*] جاري جلب أسعار العقود الآجلة من Binance ({'الهابطة' if get_losers else 'الصاعدة'})...")
+    print(f"[*] جاري جلب أسعار العملات الرقمية ({'الهابطة' if get_losers else 'الصاعدة'})...")
     url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
     
     try:
         response = requests.get(url, timeout=10)
+        
+        # إذا كانت الاستجابة خطأ 451 (محظور قانونياً)، ننتقل للبديل فوراً
+        if response.status_code == 451:
+            print("[!] خطأ 451: خادم الاستضافة موجود في منطقة محظورة من Binance. يتم الانتقال للبديل الآمن (CoinCap)...")
+            return get_trending_coincap(limit, get_losers)
+            
         response.raise_for_status()
         tickers = response.json()
         
@@ -67,13 +112,20 @@ def get_trending_futures(limit=5, get_losers=False):
             t["lastPriceFloat"] = float(t.get("lastPrice", 0.0))
             
         # ترتيب حسب نسبة التغير
-        usdt_tickers.sort(key=lambda x: x["priceChangePercentFloat"], reverse=get_losers)
+        usdt_tickers.sort(key=lambda x: x["priceChangePercentFloat"], reverse=not get_losers)
         
-        return usdt_tickers[:limit]
+        result = []
+        for t in usdt_tickers[:limit]:
+            result.append({
+                "symbol": t["symbol"],
+                "priceChangePercentFloat": t["priceChangePercentFloat"],
+                "lastPriceFloat": t["lastPriceFloat"]
+            })
+        return result
         
     except Exception as e:
-        print(f"[-] خطأ أثناء جلب بيانات العقود الآجلة: {e}")
-        return []
+        print(f"[!] حدث خطأ أثناء الاتصال بـ Binance ({e}). يتم الانتقال للبديل الآمن (CoinCap)...")
+        return get_trending_coincap(limit, get_losers)
 
 def get_latest_news(limit=3):
     """
@@ -130,14 +182,14 @@ def generate_post_content(post_type):
             for g in gainers
         ])
         prompt = f"""
-اكتب منشوراً تحليلياً حاداً وواقعياً كمتداول مخضرم حول هذه العملات الأكثر صعوداً (Exploded Upward) حالياً في العقود الآجلة:
+اكتب منشوراً تحليلياً حاداً وواقعياً كمتداول مخضرم حول هذه العملات الأكثر صعوداً (Exploded Upward) حالياً في السوق:
 {gainers_text}
 
 ملاحظات للتضمين:
 - فسر للمتداولين المبتدئين لماذا مطاردة الارتفاعات الحالية (FOMO) هي انتحار مالي.
 - تحدث عن أهمية انتظار التصحيح وإيجاد الدعم بدلاً من الشراء عند القمة.
 - ركز على أهمية إدارة المخاطر والرافعة المالية الحذرة.
-- أضف ما لا يزيد عن 3 هاشتاجات فقط مثل: #Binance #Crypto #Futures
+- أضف ما لا يزيد عن 3 هاشتاجات فقط مثل: #Binance #Crypto #MarketInsight
 """
 
     elif post_type == "losers":
@@ -149,20 +201,19 @@ def generate_post_content(post_type):
             for l in losers
         ])
         prompt = f"""
-اكتب منشوراً تحليلياً واقعياً وجاداً كمتداول مخضرم حول هذه العملات الأكثر هبوطاً وانخفاضاً (Exploded Downward) حالياً في العقود الآجلة:
+اكتب منشوراً تحليلياً واقعياً وجاداً كمتداول مخضرم حول هذه العملات الأكثر هبوطاً وانخفاضاً (Exploded Downward) حالياً في السوق:
 {losers_text}
 
 ملاحظات للتضمين:
-- حذر من خطر "التقاط السكين الساقطة" (شراء القاع دون تأكيد فني أو إشارات انعكاس).
+- حذر من خطر "التقاط السكين الساقطة" (شراء القاع دون تأكيد فني أو إشارات انعالاس واضحة).
 - اشرح كيف أن الهبوط الحاد قد يكون فرصة للمستثمر الصبور، لكنه مصيدة للمتداول المتسرع الذي يستخدم رافعة مالية عالية.
 - وجه المتداولين لمراقبة مستويات الدعم التاريخية وسيولة السوق.
-- أضف ما لا يزيد عن 3 هاشتاجات فقط مثل: #Binance #Crypto #Futures
+- أضف ما لا يزيد عن 3 هاشتاجات فقط مثل: #Binance #Crypto #MarketInsight
 """
 
     elif post_type == "news":
         news_list = get_latest_news(limit=3)
         if not news_list:
-            # سقوط تلقائي في حال فشل جلب الأخبار
             print("[*] فشل جلب الأخبار الحية، سيتم توليد رؤية عامة للسوق كبديل...")
             prompt = """
 اكتب مقالاً تحليلياً للمتداولين كمتداول مخضرم يقدم رؤية ونظرة عامة على أوضاع السوق الحالية (Crypto Market Sentiment).
