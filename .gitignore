@@ -1,0 +1,8 @@
+# تجاهل الملفات الحساسة وملفات التكوين المحلية لمنع رفعها إلى GitHub
+.env
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+scheduler.log
+cron.log
