@@ -539,7 +539,7 @@ def format_ticker_for_scan(symbol):
 
 def scan_coin(ticker, timeframe="1d"):
     """
-    إجراء تحليل فني فوري وشامل لعملة محددة من خلال واجهة البوت.
+    إجراء تحليل فني فوري وشامل لعملة محددة من خلال واجهة البوت مع كتابة سجلات تفصيلية للتشخيص.
     """
     formatted_ticker = format_ticker_for_scan(ticker)
     print(f"[*] جاري فحص وتحليل العملة {formatted_ticker} عبر API...")
@@ -548,11 +548,27 @@ def scan_coin(ticker, timeframe="1d"):
         "ticker": formatted_ticker,
         "timeframe": timeframe
     }
+    
+    log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
+    
     try:
         response = requests.get(url, params=params, timeout=10)
+        # تسجيل المحاولة الناجحة في ملف اللوغ
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url} with params {params}. Status Code: {response.status_code}\n")
         response.raise_for_status()
         return response.json()
     except Exception as e:
+        # تسجيل الخطأ بالتفصيل في ملف اللوغ
+        err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url} with params {params}. Exception: {e}\n"
+        if 'response' in locals() and response is not None:
+            err_msg += f"Status Code: {response.status_code} | Response: {response.text}\n"
+        try:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(err_msg + "-"*50 + "\n")
+        except Exception:
+            pass
+            
         print(f"[-] فشل الاتصال بواجهة فحص العملة ({e}). سيتم استخدام بيانات تحليل نموذجية...")
         return {
             "ticker": formatted_ticker,
