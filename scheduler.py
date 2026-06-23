@@ -146,6 +146,20 @@ def start_scheduler():
         t = threading.Thread(target=run_health_server, daemon=True)
         t.start()
 
+    # تشغيل بوت التلغرام للتحكم بالنشر في الخلفية
+    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if telegram_token and telegram_chat_id:
+        try:
+            from telegram_bot import run_telegram_bot
+            t_tg = threading.Thread(target=run_telegram_bot, daemon=True)
+            t_tg.start()
+            print("[*] تم إطلاق خيط تشغيل بوت التلغرام بنجاح.")
+        except Exception as e:
+            print(f"[-] خطأ أثناء تشغيل خيط بوت التلغرام: {e}")
+    else:
+        print("[*] لم يتم تشغيل بوت التلغرام لعدم تكوين مفاتيح TELEGRAM_BOT_TOKEN أو TELEGRAM_CHAT_ID.")
+
     print("="*60)
     print("  بدء تشغيل جدولة النشر التلقائي للذكاء الاصطناعي على الاستضافة")
     print(f"  نمط الجدولة الحالي: {SCHEDULER_MODE.upper()}")
