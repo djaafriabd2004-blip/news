@@ -21,17 +21,42 @@ load_dotenv()
 
 BINANCE_SQUARE_API_KEY = os.getenv("BINANCE_SQUARE_API_KEY")
 
-# قراءة مفاتيح الوصول للذكاء الاصطناعي مع دعم كلاً من Groq و Grok
-AI_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("XAI_API_KEY")
-AI_MODEL = os.getenv("GROQ_MODEL") or os.getenv("GROK_MODEL") or "llama-3.3-70b-versatile"
+# قراءة مفاتيح الوصول لجميع مزودي الخدمة
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
-# تحديد الرابط الأساسي تلقائياً بناءً على اسم النموذج أو مفتاح الوصول المستخدم
-if "llama" in AI_MODEL.lower() or os.getenv("GROQ_API_KEY"):
-    BASE_URL = "https://api.groq.com/openai/v1"
-    PROVIDER_NAME = "Groq (LPU)"
-else:
-    BASE_URL = "https://api.x.ai/v1"
-    PROVIDER_NAME = "xAI (Grok)"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-2-latest")
+
+# تفعيل التخزين المحلي للمزود النشط
+def get_active_provider():
+    provider_file = os.path.join(os.path.dirname(__file__), "active_provider.txt")
+    if os.path.exists(provider_file):
+        try:
+            with open(provider_file, "r", encoding="utf-8") as f:
+                prov = f.read().strip().lower()
+                if prov in ["gemini", "groq", "grok"]:
+                    return prov
+        except Exception:
+            pass
+    return os.getenv("ACTIVE_PROVIDER", "gemini").lower()
+
+def set_active_provider(provider):
+    provider = provider.lower()
+    if provider not in ["gemini", "groq", "grok"]:
+        return False
+    provider_file = os.path.join(os.path.dirname(__file__), "active_provider.txt")
+    try:
+        with open(provider_file, "w", encoding="utf-8") as f:
+            f.write(provider)
+        return True
+    except Exception:
+        return False
+
+ACTIVE_PROVIDER = get_active_provider()
 
 # قاموس البرومبات (قوالب التوجيه) لكل نوع منشورات لسهولة التعديل والتخصيص
 PROMPTS_CONFIG = {
@@ -672,15 +697,16 @@ def classify_news_topic(title):
         
     return "general"
 
-def generate_post_content(post_type):
+def generate_post_content(post_type, provider=None):
     """
-    توليد نص المنشور بواسطة الذكاء الاصطناعي حسب النوع المحدد.
+    توليد نص المنشور بواسطة الذكاء الاصطناعي حسب النوع المحدد مع دعم التبديل بين المزودين والتراجع التلقائي.
     """
-    if not AI_API_KEY:
-        print("[-] خطأ: لم يتم العثور على مفتاح الوصول للذكاء الاصطناعي في ملف .env")
-        sys.exit(1)
+    # تحديد المزود المختار (الممرر أو النشط حالياً)
+    selected_provider = provider or get_active_provider()
+    if selected_provider not in ["gemini", "groq", "grok"]:
+        selected_provider = "gemini"
         
-    print(f"[*] جاري توليد منشور من نوع [{post_type}] باستخدام {PROVIDER_NAME}...")
+    print(f"[*] جاري توليد منشور من نوع [{post_type}] مع تحديد المزود الافتراضي: [{selected_provider}]...")
     
     prompt = ""
     
@@ -910,24 +936,64 @@ def generate_post_content(post_type):
             indicators_text=indicators_text
         )
 
-    try:
-        client = OpenAI(api_key=AI_API_KEY, base_url=BASE_URL)
-        response = client.chat.completions.create(
-            model=AI_MODEL,
-            messages=[
-                {"role": "system", "content": VETERAN_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.75
-        )
-        generated_content = response.choices[0].message.content
-        if generated_content:
-            return enforce_length_limit(generated_content, max_chars=400)
-        return None
+    # تحديد ترتيب المحاولة للمزودين لضمان التراجع التلقائي (Fallback)
+    providers_order = [selected_provider]
+    for p in ["gemini", "groq", "grok"]:
+        if p not in providers_order:
+            providers_order.append(p)
+
+    generated_content = None
+    provider_names = {
+        "gemini": "Google Gemini",
+        "groq": "Groq (LPU)",
+        "grok": "xAI (Grok)"
+    }
+
+    for p in providers_order:
+        api_key = None
+        base_url = None
+        model = None
         
-    except Exception as e:
-        print(f"[-] خطأ أثناء التوليد من الذكاء الاصطناعي: {e}")
+        if p == "gemini":
+            api_key = GEMINI_API_KEY
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+            model = GEMINI_MODEL
+        elif p == "groq":
+            api_key = GROQ_API_KEY
+            base_url = "https://api.groq.com/openai/v1"
+            model = GROQ_MODEL
+        elif p == "grok":
+            api_key = XAI_API_KEY
+            base_url = "https://api.x.ai/v1"
+            model = GROK_MODEL
+
+        if not api_key:
+            # تخطي المزود لو مفتاح الوصول غير متوفر
+            continue
+
+        print(f"[*] جاري محاولة التوليد باستخدام [{provider_names[p]}] (النموذج: {model})...")
+        try:
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": VETERAN_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.75
+            )
+            generated_content = response.choices[0].message.content
+            if generated_content:
+                print(f"[+] تم توليد المحتوى بنجاح باستخدام [{provider_names[p]}].")
+                break
+        except Exception as e:
+            print(f"[-] فشل استخدام [{provider_names[p]}]: {e}. سيتم الانتقال للبديل المتاح...")
+
+    if not generated_content:
+        print("[-] خطأ: فشل التوليد باستخدام جميع المزودين المتاحين!")
         return None
+
+    return enforce_length_limit(generated_content, max_chars=400)
 
 def post_to_binance_square(content):
     """
@@ -968,7 +1034,7 @@ def post_to_binance_square(content):
         print(f"[-] حدث خطأ أثناء الاتصال بـ Binance Square: {e}")
         return False
 
-def main(override_type=None):
+def main(override_type=None, override_provider=None):
     parser = argparse.ArgumentParser(description="AI Binance Square Veteran Auto Poster")
     parser.add_argument(
         "--dry-run", 
@@ -981,7 +1047,13 @@ def main(override_type=None):
         default="random",
         help="نوع المحتوى المراد توليده ونشره (الافتراضي: اختيار عشوائي لتنويع المنشورات)"
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--provider",
+        choices=["gemini", "groq", "grok", "default"],
+        default="default",
+        help="مزود الذكاء الاصطناعي لتوليد المنشور (gemini, groq, grok)"
+    )
+    args, unknown = parser.parse_known_args()
     
     # تحديد نوع المنشور
     post_type = override_type or args.type
@@ -992,8 +1064,13 @@ def main(override_type=None):
         post_type = random.choices(types, weights=weights, k=1)[0]
         print(f"[*] تم اختيار نوع المنشور عشوائياً بوزن نسبي: [{post_type}] لتنويع المحتوى.")
         
+    # تحديد المزود المختار
+    prov = override_provider or args.provider
+    if prov == "default":
+        prov = None
+
     # توليد المحتوى
-    post_content = generate_post_content(post_type)
+    post_content = generate_post_content(post_type, provider=prov)
     if not post_content:
         print("[-] تعذر توليد محتوى المنشور. إيقاف العملية.")
         return

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # استيراد الوظائف من سكربت النشر الرئيسي
-from ai_poster import generate_post_content, post_to_binance_square, enforce_length_limit
+from ai_poster import generate_post_content, post_to_binance_square, enforce_length_limit, get_active_provider, set_active_provider
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -19,7 +19,8 @@ KEYBOARD_MARKUP = {
         [{"text": "📈 الفرص الصعودية"}, {"text": "📊 تحليل السوق والبيتكوين"}],
         [{"text": "🔍 تحليل عملة فوري"}, {"text": "📰 آخر الأخبار"}],
         [{"text": "🟢 عملات صاعدة"}, {"text": "🔴 عملات هابطة"}],
-        [{"text": "💡 نصيحة تداول"}, {"text": "🎯 منشور عشوائي"}]
+        [{"text": "💡 نصيحة تداول"}, {"text": "🎯 منشور عشوائي"}],
+        [{"text": "🤖 المزود النشط"}, {"text": "🔄 تبديل (Gemini ⇄ Grok)"}]
     ],
     "resize_keyboard": True,
     "one_time_keyboard": False
@@ -35,7 +36,9 @@ def handle_message(text, url, chat_id):
         "🔴 عملات هابطة": "/post losers",
         "📰 آخر الأخبار": "/post news",
         "💡 نصيحة تداول": "/post tips",
-        "🎯 منشور عشوائي": "/post random"
+        "🎯 منشور عشوائي": "/post random",
+        "🤖 المزود النشط": "/provider",
+        "🔄 تبديل (Gemini ⇄ Grok)": "/toggle_provider"
     }
     
     if text in button_mapping:
@@ -60,9 +63,56 @@ def handle_message(text, url, chat_id):
             "الأنواع المتاحة: `gainers`, `losers`, `alpha`, `news`, `tips`, `opportunities`, `market_status`, `coin_analysis`, `random`.\n\n"
             "الخيار 2: كتابة ونشر منشور يدوي خاص بك:\n"
             "أرسل: `/write <نص المنشور>`\n"
-            "سيقوم البوت بمراجعته وقصه إذا تجاوز الطول (400 حرف) ونشره فوراً."
+            "سيقوم البوت بمراجعته وقصه إذا تجاوز الطول (400 حرف) ونشره فوراً.\n\n"
+            "الخيار 3: إدارة مزود الذكاء الاصطناعي:\n"
+            "- لمعرفة المزود الحالي: أرسل `/provider` أو اضغط زر '🤖 المزود النشط'\n"
+            "- للتبديل بين جمناي وغروك: اضغط زر '🔄 تبديل (Gemini ⇄ Grok)'\n"
+            "- لتحديد مزود معين: أرسل `/provider <gemini|grok|groq>`"
         )
         send_reply(help_text)
+        return
+
+    # معالجة أمر الاستعلام وتعديل المزود النشط
+    if text.startswith("/provider"):
+        parts = text.split(" ", 1)
+        provider_names = {
+            "gemini": "Google Gemini",
+            "groq": "Groq (LPU)",
+            "grok": "xAI (Grok)"
+        }
+        if len(parts) > 1:
+            req_prov = parts[1].strip().lower()
+            if req_prov in ["gemini", "groq", "grok"]:
+                success = set_active_provider(req_prov)
+                if success:
+                    send_reply(f"🚀 تم تغيير مزود الذكاء الاصطناعي النشط إلى:\n✨ **{provider_names[req_prov]}**")
+                else:
+                    send_reply("❌ فشل تحديث المزود النشط.")
+            else:
+                send_reply(f"❌ مزود غير صالح. الخيارات المتاحة: `gemini`, `grok`, `groq`")
+        else:
+            current = get_active_provider()
+            name = provider_names.get(current, current)
+            send_reply(f"🤖 مزود الذكاء الاصطناعي النشط حالياً هو:\n✨ **{name}**")
+        return
+
+    # معالجة أمر التبديل التلقائي بين جمناي وغروك
+    if text.startswith("/toggle_provider") or text.startswith("/toggle"):
+        current = get_active_provider()
+        next_provider = "grok" if current == "gemini" else "gemini"
+        success = set_active_provider(next_provider)
+        
+        provider_names = {
+            "gemini": "Google Gemini",
+            "groq": "Groq (LPU)",
+            "grok": "xAI (Grok)"
+        }
+        
+        if success:
+            new_name = provider_names.get(next_provider, next_provider)
+            send_reply(f"🔄 تم تبديل المزود النشط بنجاح!\n🚀 المزود الجديد: **{new_name}**")
+        else:
+            send_reply("❌ فشل تحديث المزود النشط.")
         return
 
     # معالجة أمر النشر والتوليد التلقائي
