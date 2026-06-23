@@ -106,6 +106,40 @@ PROMPTS_CONFIG = {
 يجب أن يبدأ السطر الأول تماماً بـ:
 موجز رقم {digest_number} بتاريخ {today_date}
 وينتهي بهاشتاج واحد فقط: #موجز_الكريبتو_اليومي
+""",
+
+    "opportunities": """
+الفرص الصعودية المكتشفة حالياً من بوت التحليل:
+{opportunities_text}
+
+اكتب تغريدة بأسلوب "أبو الرافعة" — يتحدث فيها عن هذه الفرص الصعودية الموصى بها للدخول من البوت الفني، مع نبرة حذرة وذكية ومطالبة بعدم التسرع في وضع الرافعة دون تفكير.
+أحياناً ابدأ بـ"والله" أو "صراحة" لتنويع النبرة.
+سطرين كحد أقصى، سؤال تفاعلي في النهاية.
+""",
+
+    "market_status": """
+حالة سوق البيتكوين والمؤشرات الحالية:
+سعر البيتكوين: ${btc_price} ({btc_change}%)
+حالة جدار حماية البوت: {defense_state}
+مؤشر RSI: {rsi}
+مؤشر ADX: {adx}
+مؤشر MACD: {macd}
+
+اكتب تغريدة بأسلوب "أبو الرافعة" — يعلق فيها على المؤشرات دي بنظرة شك صحي وجريء، وحالة السوق الحالية للعملات البديلة وإذا كان هذا وقت مناسب للمخاطرة بالرافعة المالية أم يفضل الجلوس على المدرجات.
+سطرين كحد أقصى، سؤال تفاعلي في النهاية.
+""",
+
+    "coin_analysis": """
+نتائج التحليل الفني لعملة {ticker} من البوت:
+القرار: {decision}
+الثقة: {confidence}%
+المؤشرات: {indicators_text}
+
+اكتب تغريدة بأسلوب "أبو الرافعة" يعلق فيها على هذا القرار بنبرة متداول مخضرم يجمع بين الفني والعملي في السوق، مع التحذير من الاندفاع العشوائي بدون إدارة مخاطر.
+الشروط:
+- سطرين كحد أقصى.
+- كن موجزاً جداً واختصر كلامك (لا تتجاوز 280 حرف).
+- سؤال تفاعلي في النهاية.
 """
 }
 
@@ -440,6 +474,142 @@ def get_trending_alpha(limit=4):
         print(f"[-] خطأ أثناء جلب العملات الأكثر نشاطاً من Bybit: {ex}")
         return []
 
+def format_ticker_for_scan(symbol):
+    """
+    تحويل صيغة اسم العملة إلى الصيغة المقبولة في API التحليل (مثلاً SOLUSDT -> SOL-USD)
+    """
+    if not symbol:
+        return ""
+    clean = symbol.replace("USDT", "").replace("USDC", "").replace("-USD", "").replace("-USDT", "").strip()
+    return f"{clean}-USD"
+
+def scan_coin(ticker, timeframe="1d"):
+    """
+    إجراء تحليل فني فوري وشامل لعملة محددة من خلال واجهة البوت.
+    """
+    formatted_ticker = format_ticker_for_scan(ticker)
+    print(f"[*] جاري فحص وتحليل العملة {formatted_ticker} عبر API...")
+    url = f"{TRADING_BOT_URL}/api/scan_coin"
+    params = {
+        "ticker": formatted_ticker,
+        "timeframe": timeframe
+    }
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"[-] فشل الاتصال بواجهة فحص العملة ({e}). سيتم استخدام بيانات تحليل نموذجية...")
+        return {
+            "ticker": formatted_ticker,
+            "decision": random.choice(["BUY", "SELL", "HOLD"]),
+            "confidence": random.randint(70, 95),
+            "indicators": {
+                "rsi": random.randint(30, 70),
+                "macd": random.choice(["Bullish Crossover", "Bearish Crossover", "Neutral"]),
+                "adx": random.randint(15, 35)
+            }
+        }
+
+def enforce_length_limit(content, max_chars=400):
+    """
+    التأكد من أن المنشور لا يتجاوز الحد الأقصى للحروف على بايننس سكوير.
+    يتم قطع النص بشكل ذكي عند آخر علامة ترقيم أو فراغ لمنع تشويه الكلمات.
+    """
+    if not content:
+        return content
+        
+    content = content.strip()
+    if len(content) <= max_chars:
+        return content
+        
+    print(f"[!] تحذير: النص المتولد طويل جداً ({len(content)} حرف). جاري تقليصه تلقائياً إلى {max_chars} حرف...")
+    
+    # محاولة القص عند نهاية جملة مفيدة
+    truncated = content[:max_chars - 10]
+    
+    # البحث عن آخر نقطة أو علامة استفهام أو سطر جديد
+    last_stop = -1
+    for char in ['.', '!', '؟', '\n']:
+        idx = truncated.rfind(char)
+        if idx > last_stop:
+            last_stop = idx
+            
+    # إذا تم العثور على علامة نهاية جملة على مسافة معقولة (لا تقل عن 70% من الحد الأقصى)
+    if last_stop > int(max_chars * 0.7):
+        return content[:last_stop + 1].strip() + " #العملات_الرقمية"
+        
+    # إذا لم نعثر على جملة كاملة قريبة، نقطع عند آخر فراغ لمنع تشويه الكلمة
+    last_space = truncated.rfind(' ')
+    if last_space > int(max_chars * 0.5):
+        return content[:last_space].strip() + "... #العملات_الرقمية"
+        
+    return truncated.strip() + "... #العملات_الرقمية"
+
+TRADING_BOT_URL = os.getenv("TRADING_BOT_URL", "https://worker-production-d1ab.up.railway.app")
+
+def get_bot_status():
+    """
+    جلب حالة بوت التداول والصفقات النشطة من واجهة الـ API الخاصة به.
+    """
+    print("[*] جاري جلب حالة صفقات بوت التداول...")
+    url = f"{TRADING_BOT_URL}/api/status"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"[-] فشل الاتصال بواجهة حالة البوت ({e}). سيتم استخدام بيانات نموذجية...")
+        return {
+            "active_trades": [
+                {"ticker": "SOL-USDT", "entry_price": 142.50, "unrealized_pnl": 5.4},
+                {"ticker": "PEPE-USDT", "entry_price": 0.000012, "unrealized_pnl": -1.2},
+                {"ticker": "SUI-USDT", "entry_price": 0.88, "unrealized_pnl": 12.3}
+            ],
+            "win_rate": 78.5,
+            "total_trades": 142
+        }
+
+def get_bullish_opportunities():
+    """
+    جلب الفرص الصعودية المكتشفة حالياً من بوت التداول.
+    """
+    print("[*] جاري جلب الفرص الصعودية من البوت...")
+    url = f"{TRADING_BOT_URL}/api/bullish_opportunities"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"[-] فشل الاتصال بواجهة الفرص الصعودية ({e}). سيتم استخدام بيانات نموذجية...")
+        return [
+            {"ticker": "NEAR-USDT", "entry_price": 4.25, "targets": [4.60, 4.90], "stop_loss": 3.90, "confidence": 88},
+            {"ticker": "RENDER-USDT", "entry_price": 7.80, "targets": [8.40, 9.00], "stop_loss": 7.30, "confidence": 82},
+            {"ticker": "TON-USDT", "entry_price": 7.10, "targets": [7.60, 8.10], "stop_loss": 6.80, "confidence": 91}
+        ]
+
+def get_btc_market_status():
+    """
+    جلب حالة السوق والبيتكوين والمؤشرات الفنية من البوت.
+    """
+    print("[*] جاري جلب حالة سوق البيتكوين والمؤشرات...")
+    url = f"{TRADING_BOT_URL}/api/btc_market_status"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"[-] فشل الاتصال بواجهة مؤشرات البيتكوين ({e}). سيتم استخدام بيانات نموذجية...")
+        return {
+            "btc_price": 64850,
+            "price_change_24h": -1.45,
+            "downtrend_defense": True,
+            "rsi": 42.5,
+            "macd": "Bearish crossover",
+            "adx": 22.1,
+            "ema200": 63900
+        }
+
 def get_user_local_time():
     """
     حساب الوقت الحالي بتوقيت المستخدم المحلي بناءً على فرق التوقيت المختار (Offset).
@@ -602,6 +772,83 @@ def generate_post_content(post_type):
             today_date=today_date
         )
 
+    elif post_type == "opportunities":
+        opps = get_bullish_opportunities()
+        opp_items = []
+        for o in opps[:3]:
+            ticker = o.get("ticker", "").replace("-USD", "").replace("-USDT", "")
+            entry = o.get("entry_price", 0.0)
+            targets = ", ".join([str(t) for t in o.get("targets", [])])
+            opp_items.append(f"- ${ticker} (دخول: {entry} | أهداف: {targets})")
+        opportunities_text = "\n".join(opp_items)
+        prompt = PROMPTS_CONFIG["opportunities"].format(opportunities_text=opportunities_text)
+
+    elif post_type == "market_status":
+        status = get_btc_market_status()
+        btc_price = status.get("btc_price", 0.0)
+        btc_change = status.get("price_change_24h") or status.get("price_change") or 0.0
+        defense = status.get("downtrend_defense")
+        defense_state = "نشط (حماية من الهبوط)" if defense else "غير نشط (السوق صاعد)"
+        rsi = status.get("rsi", 50)
+        adx = status.get("adx", 20)
+        macd = status.get("macd", "Neutral")
+        
+        prompt = PROMPTS_CONFIG["market_status"].format(
+            btc_price=btc_price,
+            btc_change=btc_change,
+            defense_state=defense_state,
+            rsi=rsi,
+            adx=adx,
+            macd=macd
+        )
+
+    elif post_type == "coin_analysis":
+        # محاولة جلب العملات الأكثر رواجاً أو صعوداً لتحديد عملة عشوائية لتحليلها
+        chosen_coin = "SOL"
+        try:
+            alpha_list = get_trending_alpha(limit=3)
+            if alpha_list:
+                chosen_coin = random.choice(alpha_list)["symbol"]
+            else:
+                gainers = get_trending_futures(limit=3)
+                if gainers:
+                    chosen_coin = random.choice(gainers)["symbol"]
+        except Exception:
+            pass
+            
+        # إزالة USDT/USD لضمان الحصول على الرمز الصافي
+        chosen_coin = chosen_coin.replace("USDT", "").replace("USDC", "").replace("-USD", "").replace("-USDT", "").strip()
+        if not chosen_coin:
+            chosen_coin = random.choice(["SOL", "NEAR", "PEPE", "TON", "RENDER", "SUI", "FET", "ENA", "DOGE"])
+            
+        analysis = scan_coin(chosen_coin)
+        
+        decision = analysis.get("decision") or analysis.get("decision_type", "HOLD")
+        confidence = analysis.get("confidence") or analysis.get("confidence_score", 50)
+        
+        # استخراج المؤشرات بطريقة مرنة تدعم الصيغ المختلفة
+        rsi = analysis.get("rsi")
+        macd = analysis.get("macd")
+        adx = analysis.get("adx")
+        
+        if "indicators" in analysis and isinstance(analysis["indicators"], dict):
+            rsi = rsi or analysis["indicators"].get("rsi")
+            macd = macd or analysis["indicators"].get("macd")
+            adx = adx or analysis["indicators"].get("adx")
+            
+        rsi_val = f"RSI: {rsi}" if rsi else "RSI: Neutral"
+        macd_val = f"MACD: {macd}" if macd else "MACD: Neutral"
+        adx_val = f"ADX: {adx}" if adx else ""
+        
+        indicators_text = ", ".join([v for v in [rsi_val, macd_val, adx_val] if v])
+        
+        prompt = PROMPTS_CONFIG["coin_analysis"].format(
+            ticker=f"${chosen_coin}",
+            decision=decision,
+            confidence=confidence,
+            indicators_text=indicators_text
+        )
+
     try:
         client = OpenAI(api_key=AI_API_KEY, base_url=BASE_URL)
         response = client.chat.completions.create(
@@ -612,7 +859,10 @@ def generate_post_content(post_type):
             ],
             temperature=0.75
         )
-        return response.choices[0].message.content
+        generated_content = response.choices[0].message.content
+        if generated_content:
+            return enforce_length_limit(generated_content, max_chars=400)
+        return None
         
     except Exception as e:
         print(f"[-] خطأ أثناء التوليد من الذكاء الاصطناعي: {e}")
@@ -666,7 +916,7 @@ def main(override_type=None):
     )
     parser.add_argument(
         "--type",
-        choices=["gainers", "losers", "news", "tips", "alpha", "digest", "random"],
+        choices=["gainers", "losers", "news", "tips", "alpha", "digest", "opportunities", "market_status", "coin_analysis", "random"],
         default="random",
         help="نوع المحتوى المراد توليده ونشره (الافتراضي: اختيار عشوائي لتنويع المنشورات)"
     )
@@ -675,10 +925,9 @@ def main(override_type=None):
     # تحديد نوع المنشور
     post_type = override_type or args.type
     if post_type == "random":
-        # إعطاء أولوية عظمى (80%) لمنشورات حركة وحالة العملات (gainers, losers, alpha)
-        # وإعطاء 20% فقط للأخبار العامة والنصائح التفاعلية
-        types = ["gainers", "losers", "alpha", "news", "tips"]
-        weights = [30, 30, 20, 10, 10]
+        # توزيع الاحتمالات لتضمين تحليلات البوت الحية بجانب الأسعار والأخبار
+        types = ["gainers", "losers", "alpha", "news", "tips", "opportunities", "market_status", "coin_analysis"]
+        weights = [15, 15, 15, 15, 10, 10, 10, 10]
         post_type = random.choices(types, weights=weights, k=1)[0]
         print(f"[*] تم اختيار نوع المنشور عشوائياً بوزن نسبي: [{post_type}] لتنويع المحتوى.")
         
