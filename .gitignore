@@ -6,3 +6,5 @@ __pycache__/
 .vscode/
 scheduler.log
 cron.log
+published_news_titles.txt
+last_digest_time.txt

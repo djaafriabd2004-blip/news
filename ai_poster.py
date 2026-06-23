@@ -4,6 +4,7 @@ import argparse
 import requests
 import random
 import re
+import time
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -133,7 +134,7 @@ def get_trending_futures(limit=5, get_losers=False):
 
 def get_latest_news(limit=3):
     """
-    جلب الأخبار الحالية من Cointelegraph RSS.
+    جلب الأخبار الحالية من Cointelegraph RSS مع تصفية الأخبار المنشورة سابقاً لمنع التكرار اليومي.
     """
     print("[*] جاري جلب آخر الأخبار من Cointelegraph RSS...")
     url = "https://cointelegraph.com/rss"
@@ -141,6 +142,20 @@ def get_latest_news(limit=3):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124"
     }
     
+    # مسار ملف السجل لمنع تكرار الأخبار خلال 24 ساعة
+    log_file = os.path.join(os.path.dirname(__file__), "published_news_titles.txt")
+    published_titles = set()
+    if os.path.exists(log_file):
+        try:
+            # التحقق من تاريخ تعديل الملف، إذا مر أكثر من 24 ساعة نقوم بحذفه للبدء من جديد
+            if time.time() - os.path.getmtime(log_file) > 86400:
+                os.remove(log_file)
+            else:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    published_titles = set(line.strip() for line in f if line.strip())
+        except Exception as e:
+            print(f"[-] خطأ في قراءة سجل الأخبار المنشورة: {e}")
+
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
@@ -149,15 +164,46 @@ def get_latest_news(limit=3):
         root = ET.fromstring(response.text)
         
         news_items = []
-        for item in root.findall(".//item")[:limit]:
+        new_titles_to_log = []
+        
+        for item in root.findall(".//item"):
             title = item.find("title").text if item.find("title") is not None else ""
             desc_elem = item.find("description")
             desc_text = desc_elem.text if desc_elem is not None else ""
             desc_clean = re.sub('<[^<]+?>', '', desc_text)
-            news_items.append({
-                "title": title,
-                "description": desc_clean[:200]
-            })
+            
+            clean_title = title.strip()
+            # تصفية الأخبار المكررة التي تم نشرها في آخر 24 ساعة
+            if clean_title and clean_title not in published_titles:
+                news_items.append({
+                    "title": clean_title,
+                    "description": desc_clean[:200]
+                })
+                new_titles_to_log.append(clean_title)
+                if len(news_items) >= limit:
+                    break
+                    
+        # إذا لم نجد أخباراً جديدة كافية بسبب التصفية، نأخذ أي أخبار متاحة كبديل لتجنب التوقف
+        if not news_items and published_titles:
+            print("[*] تم تصفية جميع الأخبار الجديدة لمنع التكرار، يتم استخدام الأخبار المتاحة كملاذ أخير...")
+            for item in root.findall(".//item")[:limit]:
+                title = item.find("title").text if item.find("title") is not None else ""
+                desc_elem = item.find("description")
+                desc_text = desc_elem.text if desc_elem is not None else ""
+                desc_clean = re.sub('<[^<]+?>', '', desc_text)
+                news_items.append({
+                    "title": title.strip(),
+                    "description": desc_clean[:200]
+                })
+        else:
+            # تسجيل الأخبار الجديدة في الملف لمنع تكرارها لاحقاً
+            if new_titles_to_log:
+                try:
+                    with open(log_file, "a", encoding="utf-8") as f:
+                        for t in new_titles_to_log:
+                            f.write(t + "\n")
+                except Exception as e:
+                    print(f"[-] خطأ في كتابة سجل الأخبار المنشورة: {e}")
             
         return news_items
     except Exception as e:
