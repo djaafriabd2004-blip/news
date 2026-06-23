@@ -1040,6 +1040,8 @@ def post_to_binance_square(content):
         "bodyTextOnly": content
     }
     
+    log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
+    
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
@@ -1051,11 +1053,18 @@ def post_to_binance_square(content):
                 print(f"[+] تفاصيل الاستجابة: {result['data']}")
             return True
         else:
-            print(f"[-] فشل النشر. رمز الخطأ: {result.get('code')}, الرسالة: {result.get('message')}")
+            err_msg = f"[-] فشل النشر. رمز الخطأ: {result.get('code')}, الرسالة: {result.get('message')}"
+            print(err_msg)
+            # تدوين الخطأ في ملف اللوغ للتشخيص
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE ERROR: code={result.get('code')} | message={result.get('message')} | Content length: {len(content)}\n")
             return False
             
     except Exception as e:
-        print(f"[-] حدث خطأ أثناء الاتصال بـ Binance Square: {e}")
+        err_msg = f"[-] حدث خطأ أثناء الاتصال بـ Binance Square: {e}"
+        print(err_msg)
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE EXCEPTION: {e}\n")
         return False
 
 def main(override_type=None, override_provider=None):
