@@ -72,7 +72,7 @@ def handle_message(text, url, chat_id):
         if len(parts) > 1:
             post_type = parts[1].strip().lower()
             
-        valid_types = ["gainers", "losers", "news", "tips", "alpha", "digest", "opportunities", "market_status", "coin_analysis", "random"]
+        valid_types = ["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random"]
         if post_type not in valid_types:
             send_reply(f"❌ نوع غير صالح. الأنواع المتاحة هي:\n{', '.join(valid_types)}")
             return

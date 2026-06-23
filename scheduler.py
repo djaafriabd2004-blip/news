@@ -95,42 +95,14 @@ def get_seconds_until_next_peak():
 
 def check_and_run_poster():
     """
-    التحقق مما إذا كان قد مر 24 ساعة منذ آخر موجز إخباري (Digest).
-    إذا مر 24 ساعة، يتم تشغيل منشور الموجز، وإلا يتم تشغيل منشور عشوائي عادي.
+    تشغيل منشور عادي/عشوائي.
     """
-    digest_file = os.path.join(os.path.dirname(__file__), "last_digest_time.txt")
-    current_time = time.time()
-    
-    run_digest = False
-    if not os.path.exists(digest_file):
-        run_digest = True
-    else:
-        try:
-            with open(digest_file, "r") as f:
-                last_time = float(f.read().strip())
-            # 86400 ثانية تعادل 24 ساعة تماماً
-            if current_time - last_time >= 86400:
-                run_digest = True
-        except Exception:
-            run_digest = True
-            
-    if run_digest:
-        print("[*] لقد مر أكثر من 24 ساعة منذ آخر موجز. تشغيل منشور الموجز الإخباري (Digest)...")
-        try:
-            run_poster("digest")
-            print("[+] اكتملت عملية نشر الموجز الإخباري بنجاح.")
-            # تحديث وقت آخر موجز إخباري بعد نجاح النشر
-            with open(digest_file, "w") as f:
-                f.write(str(current_time))
-        except Exception as e:
-            print(f"[-] خطأ أثناء تشغيل عملية نشر الموجز: {e}")
-    else:
-        print("[*] لم يمر 24 ساعة منذ آخر موجز. تشغيل منشور عادي...")
-        try:
-            run_poster()
-            print("[+] اكتملت عملية النشر العادية بنجاح.")
-        except Exception as e:
-            print(f"[-] خطأ أثناء تشغيل عملية النشر العادية: {e}")
+    print("[*] تشغيل منشور عادي...")
+    try:
+        run_poster()
+        print("[+] اكتملت عملية النشر العادية بنجاح.")
+    except Exception as e:
+        print(f"[-] خطأ أثناء تشغيل عملية النشر العادية: {e}")
 
 def start_scheduler():
     # تهيئة الترميز للغة العربية
