@@ -569,8 +569,22 @@ def generate_post_content(post_type):
 
     elif post_type == "digest":
         local_now = get_user_local_time()
-        digest_number = (local_now.hour // 4) + 1
         today_date = local_now.strftime("%d-%m-%Y")
+        
+        # قراءة وتحديث الرقم التسلسلي اليومي للموجز ليكون متسلسلاً بشكل صحيح كل 24 ساعة
+        num_file = os.path.join(os.path.dirname(__file__), "digest_number.txt")
+        digest_number = 1
+        if os.path.exists(num_file):
+            try:
+                with open(num_file, "r") as f:
+                    digest_number = int(f.read().strip()) + 1
+            except Exception:
+                pass
+        try:
+            with open(num_file, "w") as f:
+                f.write(str(digest_number))
+        except Exception:
+            pass
         
         news_list = get_latest_news(limit=4)
         if not news_list:
