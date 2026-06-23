@@ -112,7 +112,7 @@ PROMPTS_CONFIG = {
     "tips": """
 اكتب منشوراً جريئاً وتفاعلياً للغاية بلهجة عامية محلية حول هذا الموضوع الواقعي الذي يعاني منه متداولو العقود الآجلة:
 "{chosen_topic}"
-تحدث بأسلوب عامي قريب جداً من مشاعر متداولي الكريبتو العرب، واجعل المنشور يلمس الواقع مع إشارة لعملة بديلة مثل $SOL أو $PEPE.
+تحدث بأسلوب عامي قريب جداً من مشاعر متداولي الكريبتو العرب، واجعل المنشور يلمس الواقع مع إشارة لعملة بديلة ساخنة تناسب السياق: {chosen_coin}.
 ممنوع استخدام اللغة الفصحى تماماً، وممنوع استخدام ضمير المتكلم الفردي "أنا" أو "تجربتي" أو "ستوب لوسي". تحدث بصيغة المخاطب أو الجمع أو الغائب.
 هام جداً: اجعل المنشور قصيراً ومختصراً للغاية (سطرين كحد أقصى).
 """,
@@ -145,13 +145,13 @@ VETERAN_SYSTEM_PROMPT = """
 أريدك أن تكتب مثل شخص عربي حقيقي يتفاعل على تويتر، بأسلوب عفوي وبشري تماماً وغير متكلف.
 
 يجب عليك اتباع هذه القواعد بدقة شديدة:
-1. **التركيز على العملات البديلة:** ممنوع تماماً الحديث عن البيتكوين ($BTC). كل المنشورات مخصصة للعملات البديلة الساخنة (مثل $SOL, $PEPE, $TON, $WLD, $SUI, $FET, $ENA).
+1. **التركيز على العملات البديلة:** ممنوع تماماً الحديث عن البيتكوين ($BTC). كل المنشورات مخصصة للعملات البديلة الساخنة. ركز كلامك فقط على رموز العملات المذكورة في البرومبت الموجه إليك، وتجنب تكرار نفس العملات في كل منشوراتك لتنوع المحتوى.
 2. **اللهجة العامية والبعد التام عن الفصحى:** اكتب بلهجة عامية بيضاء مبسطة (مزيج بين اللهجة الخليجية والمصرية المستخدمة بكثرة في مجتمع الكريبتو العربي على تويتر: "تبهدلوا"، "طير"، "اتصفت"، "طارت"، "انتحار"، "عاند"، "كومنتات"، إلخ). ممنوع استخدام اللغة الفصحى أو الكلمات المترجمة حرفياً.
 3. **ممنوع استخدام ضمير المتكلم "أنا" أو "تجربتي" أو "ستوب لوسي":** لا تتحدث بصيغة الفرد المتكلم. ممنوع كتابة "أنا أكره" أو "ستوب لوسي" أو "حسابي". تحدث بصيغة المخاطب أو الجمع أو الغائب (مثل: "حسابات"، "صفقات"، "تصفية صفقات"، "الشورترز").
 4. **تجنب كليشيهات الذكاء الاصطناعي والمقدمات:** ابدأ في صلب الموضوع مباشرة بدون مقدمات ترحيبية أو كليشيهات الذكاء الاصطناعي (مثل: "في الواقع"، "علاوة على ذلك"، "يا شباب"، "في عالم الكريبتو"، "اتشوحنا"). ابدأ بالحدث أو الحركة فوراً.
 5. **الطول والأسلوب:** المنشور قصير جداً ومختصر للغاية (سطرين كحد أقصى، جملة أو جملتين فقط). يجب تجنب الكتابة الطويلة أو الشرح المفصل لتكون التغريدة سريعة ومقروءة بلمحة.
 6. **النهاية التفاعلية وعنصر الأسئلة:** أنهِ المنشور دائماً بطرح أسئلة تفاعلية للمشاهدين تحثهم على التفاعل ومشاركة آرائهم، أو صفقاتهم، أو توقعاتهم للعملات البديلة التي يودون مناقشتها أو الاستفسار عنها.
-7. **الهاشتاجات وإشارة العملات:** اذكر رموز العملات البديلة مسبوقة بـ $ (مثل $SOL, $PEPE). ضع ما لا يزيد عن 2 إلى 3 هاشتاجات فقط في نهاية المنشور.
+7. **الهاشتاجات وإشارة العملات:** اذكر رموز العملات البديلة مسبوقة بـ $. ضع ما لا يزيد عن 2 إلى 3 هاشتاجات فقط في نهاية المنشور.
 8. **تجنب الأخطاء والمصطلحات الخاطئة:**
     - استخدم مصطلحات "تصفية"، "تصفيات"، أو "ليكويديشن" للتعبير عن (Liquidations). ممنوع تماماً وبشكل قاطع استخدام كلمة "الليكود" أو "ليكود" بأي سياق.
     - اكتب كلمة "العقود الآجلة" بشكل صحيح ومنفصل دائماً، وتجنب الكلمات المركبة الخاطئة مثل "الليكود_آجلة".
@@ -196,11 +196,79 @@ def get_trending_coincap(limit=5, get_losers=False):
         print(f"[-] خطأ أثناء جلب البيانات من CoinCap: {e}")
         return []
 
+def get_trending_bybit(limit=5, get_losers=False):
+    """
+    جلب البيانات الحية لأسعار العملات البديلة من Bybit Spot API كبديل قوي ومقاوم للقيود الجغرافية.
+    """
+    print("[*] جاري جلب الأسعار البديلة من Bybit Spot API...")
+    url = "https://api.bybit.com/v5/market/tickers?category=spot"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        ticker_list = data.get("result", {}).get("list", [])
+        
+        formatted_assets = []
+        for item in ticker_list:
+            symbol = item.get("symbol", "")
+            # تصفية أزواج USDT فقط واستبعاد البيتكوين
+            if symbol.endswith("USDT") and not symbol.startswith("BTC"):
+                try:
+                    change_ratio = float(item.get("price24hPcnt", 0.0))
+                    change_pct = change_ratio * 100.0
+                    price = float(item.get("lastPrice", 0.0))
+                    formatted_assets.append({
+                        "symbol": symbol,
+                        "priceChangePercentFloat": change_pct,
+                        "lastPriceFloat": price
+                    })
+                except ValueError:
+                    continue
+                    
+        formatted_assets.sort(key=lambda x: x["priceChangePercentFloat"], reverse=not get_losers)
+        return formatted_assets[:limit]
+    except Exception as e:
+        print(f"[-] خطأ أثناء جلب البيانات من Bybit: {e}")
+        return []
+
+def get_trending_mexc(limit=5, get_losers=False):
+    """
+    جلب البيانات الحية لأسعار العملات البديلة من MEXC Spot API كبديل احتياطي ذو نسبة إتاحة عالية جداً.
+    """
+    print("[*] جاري جلب الأسعار البديلة من MEXC Spot API...")
+    url = "https://api.mexc.com/api/v3/ticker/24hr"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        ticker_list = response.json()
+        
+        formatted_assets = []
+        for item in ticker_list:
+            symbol = item.get("symbol", "")
+            if symbol.endswith("USDT") and not symbol.startswith("BTC"):
+                try:
+                    change_ratio = float(item.get("priceChangePercent", 0.0))
+                    change_pct = change_ratio * 100.0
+                    price = float(item.get("lastPrice", 0.0))
+                    formatted_assets.append({
+                        "symbol": symbol,
+                        "priceChangePercentFloat": change_pct,
+                        "lastPriceFloat": price
+                    })
+                except ValueError:
+                    continue
+                    
+        formatted_assets.sort(key=lambda x: x["priceChangePercentFloat"], reverse=not get_losers)
+        return formatted_assets[:limit]
+    except Exception as e:
+        print(f"[-] خطأ أثناء جلب البيانات من MEXC: {e}")
+        return []
+
 def get_trending_futures(limit=5, get_losers=False):
     """
     جلب البيانات الحية لـ Binance Futures (أفضل العملات صعوداً أو هبوطاً).
     في حال كان الخادم في منطقة محظورة جغرافيًا (مثل خوادم أمريكا التي تعيد خطأ 451)، 
-    يتحول السكربت تلقائيًا لاستخدام CoinCap API كبديل آمن ومتاح.
+    يتحول السكربت تلقائيًا لسلسلة من البدائل الآمنة (Bybit -> MEXC -> CoinCap).
     """
     print(f"[*] جاري جلب أسعار العملات الرقمية ({'الهابطة' if get_losers else 'الصاعدة'})...")
     url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
@@ -209,7 +277,16 @@ def get_trending_futures(limit=5, get_losers=False):
         response = requests.get(url, timeout=10)
         
         if response.status_code == 451:
-            print("[!] خطأ 451: خادم الاستضافة موجود في منطقة محظورة من Binance. يتم الانتقال للبديل الآمن (CoinCap)...")
+            print("[!] خطأ 451: خادم الاستضافة موجود في منطقة محظورة من Binance. يتم الانتقال للبدائل الآمنة...")
+            # محاولة Bybit
+            bybit_data = get_trending_bybit(limit, get_losers)
+            if bybit_data:
+                return bybit_data
+            # محاولة MEXC
+            mexc_data = get_trending_mexc(limit, get_losers)
+            if mexc_data:
+                return mexc_data
+            # محاولة CoinCap
             return get_trending_coincap(limit, get_losers)
             
         response.raise_for_status()
@@ -217,7 +294,7 @@ def get_trending_futures(limit=5, get_losers=False):
         
         usdt_tickers = [
             t for t in tickers 
-            if t.get("symbol", "").endswith("USDT")
+            if t.get("symbol", "").endswith("USDT") and not t.get("symbol", "").startswith("BTC")
         ]
         
         for t in usdt_tickers:
@@ -236,7 +313,16 @@ def get_trending_futures(limit=5, get_losers=False):
         return result
         
     except Exception as e:
-        print(f"[!] حدث خطأ أثناء الاتصال بـ Binance ({e}). يتم الانتقال للبديل الآمن (CoinCap)...")
+        print(f"[!] حدث خطأ أثناء الاتصال بـ Binance ({e}). يتم الانتقال للبدائل الآمنة...")
+        # محاولة Bybit
+        bybit_data = get_trending_bybit(limit, get_losers)
+        if bybit_data:
+            return bybit_data
+        # محاولة MEXC
+        mexc_data = get_trending_mexc(limit, get_losers)
+        if mexc_data:
+            return mexc_data
+        # محاولة CoinCap
         return get_trending_coincap(limit, get_losers)
 
 def get_latest_news(limit=3):
@@ -321,6 +407,7 @@ def get_trending_alpha(limit=4):
     """
     جلب عملات الألفا (العملات الأكثر بحثاً ورواجاً حالياً على CoinGecko).
     وهي تمثل العملات التي تشهد اهتماماً اجتماعياً ضخماً وحركة قوية.
+    في حال الفشل، نستخدم كبديل العملات الأكثر تداولاً من حيث حجم التداول (Volume) على Bybit Spot.
     """
     print("[*] جاري جلب عملات الألفا الأكثر رواجاً من CoinGecko...")
     url = "https://api.coingecko.com/api/v3/search/trending"
@@ -339,9 +426,38 @@ def get_trending_alpha(limit=4):
                 "symbol": symbol,
                 "name": name
             })
-        return alpha_coins
+        if alpha_coins:
+            return alpha_coins
     except Exception as e:
-        print(f"[-] خطأ أثناء جلب عملات الألفا من CoinGecko: {e}")
+        print(f"[-] خطأ أثناء جلب عملات الألفا من CoinGecko ({e}). يتم الانتقال للبديل الآمن (Bybit Volumes)...")
+        
+    # البديل: جلب العملات الأعلى حجماً من Bybit
+    print("[*] جاري جلب العملات الأكثر نشاطاً وحجماً من Bybit...")
+    bybit_url = "https://api.bybit.com/v5/market/tickers?category=spot"
+    try:
+        response = requests.get(bybit_url, timeout=10)
+        response.raise_for_status()
+        ticker_list = response.json().get("result", {}).get("list", [])
+        
+        volume_assets = []
+        for item in ticker_list:
+            symbol = item.get("symbol", "")
+            if symbol.endswith("USDT") and not symbol.startswith("BTC") and not symbol.startswith("USDC"):
+                try:
+                    turnover = float(item.get("turnover24h", 0.0))
+                    clean_symbol = symbol.replace("USDT", "")
+                    volume_assets.append({
+                        "symbol": clean_symbol,
+                        "name": clean_symbol,
+                        "turnover": turnover
+                    })
+                except ValueError:
+                    continue
+        # ترتيب حسب الحجم التداولي الأكبر تنازلياً
+        volume_assets.sort(key=lambda x: x["turnover"], reverse=True)
+        return volume_assets[:limit]
+    except Exception as ex:
+        print(f"[-] خطأ أثناء جلب العملات الأكثر نشاطاً من Bybit: {ex}")
         return []
 
 def get_user_local_time():
@@ -449,7 +565,11 @@ def generate_post_content(post_type):
             "استخدام رافعة مالية 50x أو 100x على عملات الميمز (مثل PEPE أو SHIB) والانتظار لحد التصفية الفورية كأنها قمار."
         ]
         chosen_topic = random.choice(tips_topics)
-        prompt = PROMPTS_CONFIG["tips"].format(chosen_topic=chosen_topic)
+        
+        # اختيار عملة بديلة عشوائية لكسر التكرار
+        altcoins = ["SOL", "PEPE", "TON", "WLD", "SUI", "FET", "ENA", "DOGE", "SHIB", "AVAX", "NEAR", "RENDER", "OP", "ARB", "APT", "INJ", "LINK", "DOT", "ADA", "XRP", "LTC"]
+        chosen_coin = "$" + random.choice(altcoins)
+        prompt = PROMPTS_CONFIG["tips"].format(chosen_topic=chosen_topic, chosen_coin=chosen_coin)
 
     elif post_type == "alpha":
         alpha_list = get_trending_alpha(limit=4)
