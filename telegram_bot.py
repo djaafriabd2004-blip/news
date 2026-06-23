@@ -13,10 +13,41 @@ from ai_poster import generate_post_content, post_to_binance_square, enforce_len
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# هيكل أزرار لوحة المفاتيح الملتصقة بالهاتف
+KEYBOARD_MARKUP = {
+    "keyboard": [
+        [{"text": "📈 الفرص الصعودية"}, {"text": "📊 تحليل السوق والبيتكوين"}],
+        [{"text": "🔍 تحليل عملة فوري"}, {"text": "📰 آخر الأخبار"}],
+        [{"text": "🟢 عملات صاعدة"}, {"text": "🔴 عملات هابطة"}],
+        [{"text": "💡 نصيحة تداول"}, {"text": "🎯 منشور عشوائي"}]
+    ],
+    "resize_keyboard": True,
+    "one_time_keyboard": False
+}
+
 def handle_message(text, url, chat_id):
+    # خريطة الأزرار النصية إلى الأوامر الداخلية
+    button_mapping = {
+        "📊 تحليل السوق والبيتكوين": "/post market_status",
+        "🔍 تحليل عملة فوري": "/post coin_analysis",
+        "📈 الفرص الصعودية": "/post opportunities",
+        "🟢 عملات صاعدة": "/post gainers",
+        "🔴 عملات هابطة": "/post losers",
+        "📰 آخر الأخبار": "/post news",
+        "💡 نصيحة تداول": "/post tips",
+        "🎯 منشور عشوائي": "/post random"
+    }
+    
+    if text in button_mapping:
+        text = button_mapping[text]
+
     def send_reply(msg):
         try:
-            requests.post(f"{url}/sendMessage", json={"chat_id": chat_id, "text": msg}, timeout=10)
+            requests.post(f"{url}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": msg,
+                "reply_markup": KEYBOARD_MARKUP
+            }, timeout=10)
         except Exception as e:
             print(f"[-] خطأ أثناء إرسال رد تلغرام: {e}")
 
@@ -129,7 +160,8 @@ def run_telegram_bot():
     try:
         requests.post(f"{url}/sendMessage", json={
             "chat_id": TELEGRAM_CHAT_ID,
-            "text": "🟢 تم بدء تشغيل بوت التحكم بنشر Binance Square بنجاح!"
+            "text": "🟢 تم بدء تشغيل بوت التحكم بنشر Binance Square بنجاح!",
+            "reply_markup": KEYBOARD_MARKUP
         }, timeout=10)
     except Exception as e:
         print(f"[-] فشل إرسال رسالة التشغيل للتلغرام (ربما البوت غير مفعل أو التوكن خاطئ): {e}")
