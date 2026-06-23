@@ -93,6 +93,45 @@ def get_seconds_until_next_peak():
     delta = next_run - user_now
     return delta.total_seconds(), next_run
 
+def check_and_run_poster():
+    """
+    التحقق مما إذا كان قد مر 4 ساعات منذ آخر موجز إخباري (Digest).
+    إذا مر 4 ساعات، يتم تشغيل منشور الموجز، وإلا يتم تشغيل منشور عشوائي عادي.
+    """
+    digest_file = os.path.join(os.path.dirname(__file__), "last_digest_time.txt")
+    current_time = time.time()
+    
+    run_digest = False
+    if not os.path.exists(digest_file):
+        run_digest = True
+    else:
+        try:
+            with open(digest_file, "r") as f:
+                last_time = float(f.read().strip())
+            # 14400 ثانية تعادل 4 ساعات تماماً
+            if current_time - last_time >= 14400:
+                run_digest = True
+        except Exception:
+            run_digest = True
+            
+    if run_digest:
+        print("[*] لقد مر أكثر من 4 ساعات منذ آخر موجز. تشغيل منشور الموجز الإخباري (Digest)...")
+        try:
+            run_poster("digest")
+            print("[+] اكتملت عملية نشر الموجز الإخباري بنجاح.")
+            # تحديث وقت آخر موجز إخباري بعد نجاح النشر
+            with open(digest_file, "w") as f:
+                f.write(str(current_time))
+        except Exception as e:
+            print(f"[-] خطأ أثناء تشغيل عملية نشر الموجز: {e}")
+    else:
+        print("[*] لم يمر 4 ساعات منذ آخر موجز. تشغيل منشور عادي...")
+        try:
+            run_poster()
+            print("[+] اكتملت عملية النشر العادية بنجاح.")
+        except Exception as e:
+            print(f"[-] خطأ أثناء تشغيل عملية النشر العادية: {e}")
+
 def start_scheduler():
     # تهيئة الترميز للغة العربية
     if sys.platform.startswith("win"):
@@ -124,10 +163,7 @@ def start_scheduler():
     try:
         # تشغيل السكربت للمرة الأولى فور تشغيله لتأكيد عمله
         print(f"\n[*] [{get_user_local_time().strftime('%H:%M:%S')}] تشغيل أولي للتحقق...")
-        try:
-            run_poster()
-        except Exception as e:
-            print(f"[-] خطأ أثناء التشغيل الأولي: {e}")
+        check_and_run_poster()
 
         while True:
             # حساب وقت الانتظار بناءً على النمط المختار
@@ -156,11 +192,7 @@ def start_scheduler():
             # الاستيقاظ والنشر
             current_time = get_user_local_time().strftime("%Y-%m-%d %H:%M:%S")
             print(f"\n[*] [{current_time}] حان موعد النشر المجدول! بدء العملية...")
-            try:
-                run_poster()
-                print(f"[+] اكتملت عملية النشر بنجاح.")
-            except Exception as e:
-                print(f"[-] خطأ أثناء تشغيل عملية النشر: {e}")
+            check_and_run_poster()
                 
     except KeyboardInterrupt:
         print("\n[!] تم إيقاف المجدول بواسطة المستخدم. إغلاق.")

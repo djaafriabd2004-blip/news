@@ -191,6 +191,15 @@ def get_trending_alpha(limit=4):
         print(f"[-] خطأ أثناء جلب عملات الألفا من CoinGecko: {e}")
         return []
 
+def get_user_local_time():
+    """
+    حساب الوقت الحالي بتوقيت المستخدم المحلي بناءً على فرق التوقيت المختار (Offset).
+    """
+    from datetime import datetime, timedelta, timezone
+    timezone_offset = int(os.getenv("TIMEZONE_OFFSET", 1)) # توقيت الجزائر المحلي
+    utc_now = datetime.now(timezone.utc)
+    return utc_now + timedelta(hours=timezone_offset)
+
 def generate_post_content(post_type):
     """
     توليد نص المنشور بواسطة الذكاء الاصطناعي حسب النوع المحدد.
@@ -299,6 +308,34 @@ def generate_post_content(post_type):
 اكتب بالعامية الدارجة وبشكل تغريدة تويتر قصيرة وعفوية جداً، وممنوع استخدام "أنا".
 """
 
+    elif post_type == "digest":
+        local_now = get_user_local_time()
+        digest_number = (local_now.hour // 4) + 1
+        today_date = local_now.strftime("%d-%m-%Y")
+        
+        news_list = get_latest_news(limit=4)
+        if not news_list:
+            print("[*] فشل جلب الأخبار الحية للموجز، سيتم توليد موجز عام للسوق...")
+            news_text = "- هدوء نسبي في حركة العملات البديلة مع ترقب السيولة القادمة.\n- استقرار صفقات العقود الآجلة وتصفية المحافظ الهادئة."
+        else:
+            news_text = "\n".join([
+                f"- {n['title']}: {n['description']}"
+                for n in news_list
+            ])
+            
+        prompt = f"""
+أخبار الكريبتو المتاحة للموجز هي:
+{news_text}
+
+اكتب ملخصاً موجزاً وسريعاً جداً لأهم الأخبار بلهجة عامية محلية.
+المطلب منك بدقة:
+1. لخص الأخبار في 2 إلى 3 نقاط قصيرة جداً ومباشرة بدون تفاصيل مملة.
+2. ممنوع استخدام الفصحى وممنوع تماماً استخدام ضمير المتكلم "أنا" أو "تجربتي".
+3. يجب أن يبدأ المنشور في السطر الأول تماماً بهذه العبارة:
+موجز رقم {digest_number} بتاريخ {today_date}
+4. يجب أن ينتهي المنشور بهاشتاج واحد فقط وهو: #موجز_الكريبتو_اليومي
+"""
+
     try:
         client = OpenAI(api_key=AI_API_KEY, base_url=BASE_URL)
         response = client.chat.completions.create(
@@ -354,7 +391,7 @@ def post_to_binance_square(content):
         print(f"[-] حدث خطأ أثناء الاتصال بـ Binance Square: {e}")
         return False
 
-def main():
+def main(override_type=None):
     parser = argparse.ArgumentParser(description="AI Binance Square Veteran Auto Poster")
     parser.add_argument(
         "--dry-run", 
@@ -363,14 +400,14 @@ def main():
     )
     parser.add_argument(
         "--type",
-        choices=["gainers", "losers", "news", "tips", "alpha", "random"],
+        choices=["gainers", "losers", "news", "tips", "alpha", "digest", "random"],
         default="random",
         help="نوع المحتوى المراد توليده ونشره (الافتراضي: اختيار عشوائي لتنويع المنشورات)"
     )
     args = parser.parse_args()
     
     # تحديد نوع المنشور
-    post_type = args.type
+    post_type = override_type or args.type
     if post_type == "random":
         # إعطاء أولوية عظمى (80%) لمنشورات حركة وحالة العملات (gainers, losers, alpha)
         # وإعطاء 20% فقط للأخبار العامة والنصائح التفاعلية
