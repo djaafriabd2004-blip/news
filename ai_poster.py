@@ -697,7 +697,7 @@ def classify_news_topic(title):
         
     return "general"
 
-def generate_post_content(post_type, provider=None):
+def generate_post_content(post_type, provider=None, ticker=None):
     """
     توليد نص المنشور بواسطة الذكاء الاصطناعي حسب النوع المحدد مع دعم التبديل بين المزودين والتراجع التلقائي.
     """
@@ -859,17 +859,18 @@ def generate_post_content(post_type, provider=None):
 
     elif post_type == "coin_analysis":
         # محاولة جلب العملات الأكثر رواجاً أو صعوداً لتحديد عملة عشوائية لتحليلها
-        chosen_coin = "SOL"
-        try:
-            alpha_list = get_trending_alpha(limit=3)
-            if alpha_list:
-                chosen_coin = random.choice(alpha_list)["symbol"]
-            else:
-                gainers = get_trending_futures(limit=3)
-                if gainers:
-                    chosen_coin = random.choice(gainers)["symbol"]
-        except Exception:
-            pass
+        chosen_coin = ticker or "SOL"
+        if not ticker:
+            try:
+                alpha_list = get_trending_alpha(limit=3)
+                if alpha_list:
+                    chosen_coin = random.choice(alpha_list)["symbol"]
+                else:
+                    gainers = get_trending_futures(limit=3)
+                    if gainers:
+                        chosen_coin = random.choice(gainers)["symbol"]
+            except Exception:
+                pass
             
         # إزالة USDT/USD لضمان الحصول على الرمز الصافي
         chosen_coin = chosen_coin.replace("-USDT", "").replace("-USD", "").replace("USDT", "").replace("USDC", "").strip()
@@ -878,6 +879,13 @@ def generate_post_content(post_type, provider=None):
             
         analysis = scan_coin(chosen_coin)
         
+        # إذا كانت الاستجابة تحتوي على منشور جاهز من الخادم، نقوم بنشره مباشرة دون أي تعديل أو استدعاء للذكاء الاصطناعي
+        if isinstance(analysis, dict) and "binance_post" in analysis:
+            post_text = analysis.get("binance_post")
+            if post_text:
+                print(f"[+] تم الحصول على منشور جاهز لعملة {chosen_coin} من الـ API مباشرة. يتم استخدامه للنشر الفوري.")
+                return post_text.strip()
+
         decision = analysis.get("decision") or analysis.get("decision_type", "HOLD")
         confidence = analysis.get("confidence") or analysis.get("confidence_score", 50)
         
@@ -1053,6 +1061,11 @@ def main(override_type=None, override_provider=None):
         default="default",
         help="مزود الذكاء الاصطناعي لتوليد المنشور (gemini, groq, grok)"
     )
+    parser.add_argument(
+        "--ticker",
+        default=None,
+        help="رمز العملة لتقرير coin_analysis (مثال: SOL, BTC)"
+    )
     args, unknown = parser.parse_known_args()
     
     # تحديد نوع المنشور
@@ -1068,9 +1081,11 @@ def main(override_type=None, override_provider=None):
     prov = override_provider or args.provider
     if prov == "default":
         prov = None
+        
+    custom_ticker = args.ticker
 
     # توليد المحتوى
-    post_content = generate_post_content(post_type, provider=prov)
+    post_content = generate_post_content(post_type, provider=prov, ticker=custom_ticker)
     if not post_content:
         print("[-] تعذر توليد محتوى المنشور. إيقاف العملية.")
         return

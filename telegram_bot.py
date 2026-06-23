@@ -117,17 +117,22 @@ def handle_message(text, url, chat_id):
 
     # معالجة أمر النشر والتوليد التلقائي
     if text.startswith("/post"):
-        parts = text.split(" ", 1)
+        parts = text.split()
         post_type = "random"
+        coin_arg = None
         if len(parts) > 1:
             post_type = parts[1].strip().lower()
+        if len(parts) > 2:
+            coin_arg = parts[2].strip().upper()
             
         valid_types = ["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random"]
         if post_type not in valid_types:
             send_reply(f"❌ نوع غير صالح. الأنواع المتاحة هي:\n{', '.join(valid_types)}")
             return
             
-        send_reply(f"⏳ جاري توليد منشور من نوع [{post_type}] عبر الذكاء الاصطناعي...")
+        msg_verb = "جلب منشور تحليل جاهز لـ" if (post_type == "coin_analysis" and coin_arg) else "توليد منشور من نوع"
+        target_name = f"[{post_type} {coin_arg}]" if coin_arg else f"[{post_type}]"
+        send_reply(f"⏳ جاري {msg_verb} {target_name}...")
         
         def do_generation():
             try:
@@ -139,9 +144,9 @@ def handle_message(text, url, chat_id):
                     weights = [15, 15, 15, 15, 10, 10, 10, 10]
                     target_type = random.choices(types, weights=weights, k=1)[0]
                 
-                content = generate_post_content(target_type)
+                content = generate_post_content(target_type, ticker=coin_arg)
                 if not content:
-                    send_reply("❌ فشل توليد المنشور من الذكاء الاصطناعي. راجع سجلات السيرفر.")
+                    send_reply("❌ فشل توليد أو جلب المنشور. تأكد من صلاحية الاتصال بالسيرفر والـ API.")
                     return
                     
                 # النشر على بينانس سكوير
@@ -151,7 +156,7 @@ def handle_message(text, url, chat_id):
                 else:
                     send_reply(f"❌ فشل النشر على Binance Square. تأكد من صلاحية المفاتيح.\n\n📝 **المحتوى المتولد:**\n{content}")
             except Exception as ex:
-                send_reply(f"❌ حدث خطأ غير متوقع أثناء التوليد: {ex}")
+                send_reply(f"❌ حدث خطأ غير متوقع: {ex}")
                 
         threading.Thread(target=do_generation).start()
         return
