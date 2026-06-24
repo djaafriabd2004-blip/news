@@ -684,17 +684,84 @@ def get_bullish_opportunities():
             {"ticker": "TON-USDT", "entry_price": 7.10, "targets": [7.60, 8.10], "stop_loss": 6.80, "confidence": 91}
         ]
 
+def get_explosion_opportunity_post():
+    """
+    جلب المنشورات الجاهزة لفرص الانفجار من البوت واختيار منشور عشوائي.
+    """
+    print("[*] جاري جلب فرص الانفجار والمنشورات الجاهزة...")
+    url = f"{TRADING_BOT_URL}/api/explosion_opportunities"
+    log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
+    try:
+        response = requests.get(url, timeout=10)
+        # تسجيل المحاولة الناجحة في ملف اللوغ
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url}. Status Code: {response.status_code}\n")
+        response.raise_for_status()
+        data = response.json()
+        
+        # التعامل مع الاحتمالات المختلفة للاستجابة (قائمة أو كائن يحتوي على قائمة)
+        coins_list = []
+        if isinstance(data, list):
+            coins_list = data
+        elif isinstance(data, dict):
+            # محاولة البحث عن أي حقل يحتوي على قائمة
+            for val in data.values():
+                if isinstance(val, list):
+                    coins_list = val
+                    break
+        
+        valid_posts = []
+        for item in coins_list:
+            if isinstance(item, dict) and item.get("binance_post"):
+                valid_posts.append(item["binance_post"].strip())
+                
+        if valid_posts:
+            # نختار أحد المنشورات عشوائياً
+            selected_post = random.choice(valid_posts)
+            print(f"[+] تم العثور على {len(valid_posts)} منشورات جاهزة لفرص الانفجار. تم اختيار واحد عشوائياً.")
+            return selected_post
+            
+        print("[-] لم يتم العثور على أي منشور جاهز (binance_post) في استجابة فرص الانفجار.")
+        return None
+    except Exception as e:
+        # تسجيل الخطأ بالتفصيل في ملف اللوغ
+        err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url}. Exception: {e}\n"
+        if 'response' in locals() and response is not None:
+            err_msg += f"Status Code: {response.status_code} | Response: {response.text}\n"
+        try:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(err_msg + "-"*50 + "\n")
+        except Exception:
+            pass
+            
+        print(f"[-] فشل جلب منشورات فرص الانفجار من الـ API ({e}).")
+        return None
+
 def get_btc_market_status():
     """
     جلب حالة السوق والبيتكوين والمؤشرات الفنية من البوت.
     """
     print("[*] جاري جلب حالة سوق البيتكوين والمؤشرات...")
     url = f"{TRADING_BOT_URL}/api/btc_market_status"
+    log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
     try:
         response = requests.get(url, timeout=10)
+        # تسجيل المحاولة الناجحة في ملف اللوغ
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url}. Status Code: {response.status_code}\n")
         response.raise_for_status()
         return response.json()
     except Exception as e:
+        # تسجيل الخطأ بالتفصيل في ملف اللوغ
+        err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url}. Exception: {e}\n"
+        if 'response' in locals() and response is not None:
+            err_msg += f"Status Code: {response.status_code} | Response: {response.text}\n"
+        try:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(err_msg + "-"*50 + "\n")
+        except Exception:
+            pass
+            
         print(f"[-] فشل الاتصال بواجهة مؤشرات البيتكوين ({e}). سيتم استخدام بيانات نموذجية...")
         return {
             "btc_price": 64850,
@@ -870,6 +937,13 @@ def generate_post_content(post_type, provider=None, ticker=None):
         )
 
     elif post_type == "opportunities":
+        # أولاً: محاولة جلب منشور جاهز من API فرص الانفجار مباشرة
+        ready_post = get_explosion_opportunity_post()
+        if ready_post:
+            print("[+] تم الحصول على منشور جاهز لفرص الانفجار من الـ API مباشرة. يتم استخدامه للنشر الفوري.")
+            return ready_post.strip()
+            
+        # ثانياً: التراجع للذكاء الاصطناعي في حال عدم التوفر
         opps = get_bullish_opportunities()
         opp_items = []
         for o in opps[:3]:
@@ -882,6 +956,15 @@ def generate_post_content(post_type, provider=None, ticker=None):
 
     elif post_type == "market_status":
         status = get_btc_market_status()
+        
+        # أولاً: محاولة جلب منشور جاهز لحالة السوق من الـ API مباشرة
+        if isinstance(status, dict) and "ready_post" in status:
+            ready_post = status.get("ready_post")
+            if ready_post:
+                print("[+] تم الحصول على منشور جاهز لحالة السوق من الـ API مباشرة. يتم استخدامه للنشر الفوري.")
+                return ready_post.strip()
+                
+        # ثانياً: التراجع للذكاء الاصطناعي في حال عدم التوفر
         btc_price = status.get("btc_price", 0.0)
         btc_change = status.get("price_change_24h") or status.get("price_change") or 0.0
         defense = status.get("downtrend_defense")
