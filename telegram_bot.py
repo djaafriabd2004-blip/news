@@ -13,6 +13,9 @@ from ai_poster import generate_post_content, post_to_binance_square, enforce_len
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# قاموس لتتبع حالات المستخدمين التفاعلية
+USER_STATES = {}
+
 # هيكل أزرار لوحة المفاتيح الملتصقة بالهاتف
 KEYBOARD_MARKUP = {
     "keyboard": [
@@ -53,6 +56,35 @@ def handle_message(text, url, chat_id):
             }, timeout=10)
         except Exception as e:
             print(f"[-] خطأ أثناء إرسال رد تلغرام: {e}")
+
+    # التحقق من حالة المستخدم لانتظار إدخال عملة
+    if USER_STATES.get(chat_id) == "awaiting_coin_symbol":
+        # إذا كتب المستخدم أمراً آخر أو زر من الكيبورد، نقوم بإلغاء الحالة ومعالجة الأمر الجديد
+        if text.startswith("/") or text in button_mapping.values() or text in button_mapping.keys():
+            USER_STATES[chat_id] = None
+        else:
+            coin_symbol = text.strip().upper().replace("#", "").replace("$", "")
+            USER_STATES[chat_id] = None
+            
+            send_reply(f"⏳ جاري جلب منشور تحليل جاهز لـ [{coin_symbol}] ونشره...")
+            
+            def do_generation():
+                try:
+                    content = generate_post_content("coin_analysis", ticker=coin_symbol)
+                    if not content:
+                        send_reply("❌ فشل توليد أو جلب المنشور. تأكد من صلاحية الاتصال بالسيرفر والـ API.")
+                        return
+                        
+                    success = post_to_binance_square(content)
+                    if success:
+                        send_reply(f"✅ تم النشر بنجاح لـ {coin_symbol} على Binance Square!\n\n📝 **المنشور المرفوع:**\n{content}")
+                    else:
+                        send_reply(f"❌ فشل النشر لـ {coin_symbol} على Binance Square. تأكد من صلاحية المفاتيح.\n\n📝 **المحتوى:**\n{content}")
+                except Exception as ex:
+                    send_reply(f"❌ حدث خطأ غير متوقع: {ex}")
+                    
+            threading.Thread(target=do_generation).start()
+            return
 
     # معالجة أوامر المساعدة
     if text.startswith("/start") or text.startswith("/help"):
@@ -130,6 +162,12 @@ def handle_message(text, url, chat_id):
             send_reply(f"❌ نوع غير صالح. الأنواع المتاحة هي:\n{', '.join(valid_types)}")
             return
             
+        # إذا طلب العميل coin_analysis ولم يحدد رمز العملة
+        if post_type == "coin_analysis" and not coin_arg:
+            USER_STATES[chat_id] = "awaiting_coin_symbol"
+            send_reply("✍️ يرجى كتابة رمز العملة التي تريد فحصها ونشر تحليلها (مثال: SOL, BTC, PEPE):")
+            return
+
         msg_verb = "جلب منشور تحليل جاهز لـ" if (post_type == "coin_analysis" and coin_arg) else "توليد منشور من نوع"
         target_name = f"[{post_type} {coin_arg}]" if coin_arg else f"[{post_type}]"
         send_reply(f"⏳ جاري {msg_verb} {target_name}...")
