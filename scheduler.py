@@ -102,12 +102,20 @@ def load_daily_counts():
     قراءة عدادات النشر اليومية من ملف JSON المحلي.
     """
     today_str = get_user_local_time().strftime("%Y-%m-%d")
-    default_counts = {"date": today_str, "market_status": 0, "opportunities": 0}
+    default_counts = {
+        "date": today_str, 
+        "market_status": 0, 
+        "opportunities": 0,
+        "last_coin_analysis_hour": -1
+    }
     if os.path.exists(COUNTS_FILE):
         try:
             with open(COUNTS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if data.get("date") == today_str:
+                    # التأكد من وجود الحقل الجديد
+                    if "last_coin_analysis_hour" not in data:
+                        data["last_coin_analysis_hour"] = -1
                     return data
         except Exception:
             pass
@@ -137,38 +145,45 @@ def check_and_run_poster():
     
     target_type = None
     
-    # منطق توزيع المنشورات على 3 فترات يومية (توقيت الجزائر المحلي):
-    # الفترة الأولى: الصباح (من الساعة 8 إلى 11)
-    if 8 <= hour <= 11:
-        if counts["market_status"] < 1:
-            target_type = "market_status"
-            counts["market_status"] += 1
-        elif counts["opportunities"] < 1:
-            target_type = "opportunities"
-            counts["opportunities"] += 1
-            
-    # الفترة الثانية: بعد الظهر (من الساعة 14 إلى 17)
-    elif 14 <= hour <= 17:
-        if counts["market_status"] < 2:
-            target_type = "market_status"
-            counts["market_status"] += 1
-        elif counts["opportunities"] < 2:
-            target_type = "opportunities"
-            counts["opportunities"] += 1
-            
-    # الفترة الثالثة: المساء (من الساعة 20 إلى 23)
-    elif 20 <= hour <= 23:
-        if counts["market_status"] < 3:
-            target_type = "market_status"
-            counts["market_status"] += 1
-        elif counts["opportunities"] < 3:
-            target_type = "opportunities"
-            counts["opportunities"] += 1
-
-    # إذا تم تحديد نوع مستهدف لتلبية الحصة اليومية، نقوم بتحديث العدادات وحفظها
-    if target_type:
+    # 1. التحقق من النشر الساعي لتحليل عملة فوري (مرة كل ساعة)
+    if counts.get("last_coin_analysis_hour") != hour:
+        target_type = "coin_analysis"
+        counts["last_coin_analysis_hour"] = hour
         save_daily_counts(counts)
-        print(f"[+] تم تحديد منشور مستهدف لتلبية الحصة اليومية: [{target_type}]. العدادات الحالية: {counts}")
+        print(f"[+] تم تحديد منشور تحليل عملة فوري ساعي مستهدف للتعويض. العدادات: {counts}")
+    else:
+        # 2. في منشور منتصف الساعة، نتحقق من الحصص اليومية الأخرى (حالة السوق وفرص الانفجار)
+        # الفترة الأولى: الصباح (من الساعة 8 إلى 11)
+        if 8 <= hour <= 11:
+            if counts["market_status"] < 1:
+                target_type = "market_status"
+                counts["market_status"] += 1
+            elif counts["opportunities"] < 1:
+                target_type = "opportunities"
+                counts["opportunities"] += 1
+                
+        # الفترة الثانية: بعد الظهر (من الساعة 14 إلى 17)
+        elif 14 <= hour <= 17:
+            if counts["market_status"] < 2:
+                target_type = "market_status"
+                counts["market_status"] += 1
+            elif counts["opportunities"] < 2:
+                target_type = "opportunities"
+                counts["opportunities"] += 1
+                
+        # الفترة الثالثة: المساء (من الساعة 20 إلى 23)
+        elif 20 <= hour <= 23:
+            if counts["market_status"] < 3:
+                target_type = "market_status"
+                counts["market_status"] += 1
+            elif counts["opportunities"] < 3:
+                target_type = "opportunities"
+                counts["opportunities"] += 1
+
+        # إذا تم تحديد نوع مستهدف لتلبية الحصة اليومية، نقوم بتحديث العدادات وحفظها
+        if target_type:
+            save_daily_counts(counts)
+            print(f"[+] تم تحديد منشور مستهدف لتلبية الحصة اليومية: [{target_type}]. العدادات الحالية: {counts}")
     
     try:
         run_poster(override_type=target_type)

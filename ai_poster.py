@@ -61,22 +61,29 @@ ACTIVE_PROVIDER = get_active_provider()
 # قاموس البرومبات (قوالب التوجيه) لكل نوع منشورات لسهولة التعديل والتخصيص
 PROMPTS_CONFIG = {
     "gainers": """
-العملات دي صاعدة بقوة دلوقتي: {gainers_text}.
-اكتب تغريدة بأسلوب "أبو الرافعة" — شماتة خفيفة بالشورترز اللي اتصفوا وهم عاندوا مع الاتجاه، مع تحذير سريع لأي أحد يفكر يفتح شورت جديد بدون تحليل.
+العملات التالية حققت ارتفاعات سعرية حية مع قراءة التحليل الفني من الـ API:
+{gainers_text}
+
+اكتب منشوراً تحليلياً بأسلوب رسمي وموضوعي وجاد جداً يعرض حالة العملات الصاعدة مع تحليلها الفني.
+توجيه هام: بالنسبة لهذا المنشور، تجاهل شخصية 'أبو الرافعة' واللغة العامية تماماً، واكتب كأخصائي تحليل فني رسمي محترف بأسلوب عربي فصيح رصين.
 الشروط:
-- اكتب بلهجة عامية طبيعية ومتنوعة البدايات.
+- تجنب تماماً الكلمات العامية، المبالغات، العاطفية، أو أي عبارات شعبية/غير رسمية.
+- تحدث بموضوعية عن وضعها الفني ولا تقدم توصيات شراء مباشرة بل قدم قراءة فنية.
 - سطرين كحد أقصى.
-- سؤال تفاعلي في النهاية.
+- سؤال تفاعلي هادئ في النهاية حول توقعات المتابعين الفنية.
 """,
 
     "losers": """
-العملات دي نازلة ونازفة: {losers_text}.
-اكتب تغريدة بأسلوب "أبو الرافعة" — تفهم حقيقي لألم اللونجات المتصفين، مع تحذير من الانخداع بأي ارتداد وهمي أو مصيدة صعودية.
+العملات التالية شهدت انخفاضات سعرية حية مع قراءة التحليل الفني من الـ API:
+{losers_text}
+
+اكتب منشوراً تحليلياً بأسلوب رسمي وموضوعي وجاد جداً يعرض حالة العملات الهابطة مع تحليلها الفني.
+توجيه هام: بالنسبة لهذا المنشور، تجاهل شخصية 'أبو الرافعة' واللغة العامية تماماً، واكتب كأخصائي تحليل فني رسمي محترف بأسلوب عربي فصيح رصين.
 الشروط:
-- أضف رقم تقريبي لحجم التصفيات بالمليون دولار (مثل: فوق 80 مليون لونج اتصفت).
-- اكتب بلهجة عامية طبيعية ومتنوعة البدايات.
+- تجنب تماماً الكلمات العامية، المبالغات، العاطفية، أو أي عبارات شعبية/غير رسمية.
+- تحدث بموضوعية عن وضعها الفني ولا تقدم توصيات بيع مباشرة بل قدم قراءة فنية.
 - سطرين كحد أقصى.
-- سؤال تفاعلي في النهاية.
+- سؤال تفاعلي هادئ في النهاية حول توقعات المتابعين الفنية.
 """,
 
     "news_security": """
@@ -185,14 +192,15 @@ PROMPTS_CONFIG = {
 نسبة احتمالية الحركة: {confidence}%
 المؤشرات الفنية بالتفصيل: {indicators_text}
 
-اكتب تغريدة بأسلوب "أبو الرافعة" يعلق فيها على هذا التحليل والاتجاه، ويوضح للمتابعين باختصار شديد وبطريقته الخاصة لماذا العملة صاعدة أو نازلة أو حيادية بناءً على مؤشراتها الفنية المذكورة (مثل تشبع الشراء في RSI أو تقاطع MACD).
+اكتب منشوراً تحليلياً بأسلوب رسمي وموضوعي وجاد جداً يعرض حالة هذه العملة مع تحليل مؤشراتها الفنية.
+توجيه هام: بالنسبة لهذا المنشور، تجاهل شخصية 'أبو الرافعة' واللغة العامية تماماً، واكتب كأخصائي تحليل فني رسمي محترف بأسلوب عربي فصيح رصين.
 الشروط:
 - لا تذكر كلمة "بوت" أو "برنامج" أو "نظام تلقائي".
 - ممنوع منعاً باتاً استخدام كلمة "والله" أو أي صيغ حلفان أو قسم.
-- اشرح باختصار شديد سبب الصعود/الهبوط/الحياد وفقاً لقراءة المؤشرات الفنية.
-- سطرين كحد أقصى.
-- كن موجزاً جداً واختصر كلامك (لا تتجاوز 280 حرف).
-- سؤال تفاعلي في النهاية.
+- تجنب تماماً الكلمات العامية، المبالغات، أو التعبيرات غير الرسمية.
+- اشرح باختصار شديد وبطريقة فنية موضوعية سبب الاتجاه الحالي بناءً على قراءات المؤشرات (مثل RSI وMACD).
+- سطرين كحد أقصى (لا يتجاوز 280 حرف).
+- سؤال تفاعلي هادئ في النهاية حول توقعات المتابعين الفنية.
 """
 }
 
@@ -828,10 +836,29 @@ def generate_post_content(post_type, provider=None, ticker=None):
                 {"symbol": "PEPEUSDT", "priceChangePercentFloat": 12.3, "lastPriceFloat": 0.0},
                 {"symbol": "WLDUSDT", "priceChangePercentFloat": 6.8, "lastPriceFloat": 0.0}
             ]
-        gainers_text = ", ".join([
-            f"${g['symbol'].replace('USDT', '')} (+{g['priceChangePercentFloat']:.1f}%)"
-            for g in gainers
-        ])
+        
+        gainers_items = []
+        for g in gainers[:3]:
+            sym = g["symbol"].replace("-USDT", "").replace("-USD", "").replace("USDT", "").replace("USDC", "").strip()
+            # جلب التحليل الفني من الـ API
+            analysis = scan_coin(sym)
+            
+            decision = "HOLD"
+            confidence = 50
+            rsi = 50
+            if isinstance(analysis, dict):
+                decision = analysis.get("decision") or analysis.get("decision_type") or "HOLD"
+                confidence = analysis.get("confidence") or analysis.get("confidence_score") or 50
+                rsi = analysis.get("rsi")
+                if "indicators" in analysis and isinstance(analysis["indicators"], dict):
+                    rsi = rsi or analysis["indicators"].get("rsi")
+                if rsi is None:
+                    rsi = 50
+                    
+            gainers_items.append(
+                f"- ${sym} (+{g['priceChangePercentFloat']:.1f}% | التحليل الفني: {decision} ثقة {confidence}% | RSI: {rsi})"
+            )
+        gainers_text = "\n".join(gainers_items)
         prompt = PROMPTS_CONFIG["gainers"].format(gainers_text=gainers_text)
 
     elif post_type == "losers":
@@ -843,10 +870,29 @@ def generate_post_content(post_type, provider=None, ticker=None):
                 {"symbol": "WLDUSDT", "priceChangePercentFloat": -9.5, "lastPriceFloat": 0.0},
                 {"symbol": "PEPEUSDT", "priceChangePercentFloat": -5.4, "lastPriceFloat": 0.0}
             ]
-        losers_text = ", ".join([
-            f"${l['symbol'].replace('USDT', '')} ({l['priceChangePercentFloat']:.1f}%)"
-            for l in losers
-        ])
+        
+        losers_items = []
+        for l in losers[:3]:
+            sym = l["symbol"].replace("-USDT", "").replace("-USD", "").replace("USDT", "").replace("USDC", "").strip()
+            # جلب التحليل الفني من الـ API
+            analysis = scan_coin(sym)
+            
+            decision = "HOLD"
+            confidence = 50
+            rsi = 50
+            if isinstance(analysis, dict):
+                decision = analysis.get("decision") or analysis.get("decision_type") or "HOLD"
+                confidence = analysis.get("confidence") or analysis.get("confidence_score") or 50
+                rsi = analysis.get("rsi")
+                if "indicators" in analysis and isinstance(analysis["indicators"], dict):
+                    rsi = rsi or analysis["indicators"].get("rsi")
+                if rsi is None:
+                    rsi = 50
+                    
+            losers_items.append(
+                f"- ${sym} ({l['priceChangePercentFloat']:.1f}% | التحليل الفني: {decision} ثقة {confidence}% | RSI: {rsi})"
+            )
+        losers_text = "\n".join(losers_items)
         prompt = PROMPTS_CONFIG["losers"].format(losers_text=losers_text)
 
     elif post_type == "news":
@@ -1208,9 +1254,9 @@ def main(override_type=None, override_provider=None):
     # تحديد نوع المنشور
     post_type = override_type or args.type
     if post_type == "random":
-        # توزيع الاحتمالات لتضمين تحليلات البوت الحية بجانب الأسعار والأخبار
-        types = ["gainers", "losers", "alpha", "news", "tips", "opportunities", "market_status", "coin_analysis"]
-        weights = [15, 15, 15, 15, 10, 10, 10, 10]
+        # النشر الدوري العشوائي يقتصر على الأنواع العامة فقط
+        types = ["gainers", "losers", "alpha", "news", "tips"]
+        weights = [20, 20, 20, 20, 20]
         post_type = random.choices(types, weights=weights, k=1)[0]
         print(f"[*] تم اختيار نوع المنشور عشوائياً بوزن نسبي: [{post_type}] لتنويع المحتوى.")
         
