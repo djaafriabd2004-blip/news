@@ -581,6 +581,32 @@ def scan_coin(ticker, timeframe="1d"):
             }
         }
 
+def prune_hashtags(content, max_hashtags=3):
+    """
+    التحقق من عدد الهاشتاجات في النص وتقليصها إلى الحد المسموح به من بايننس سكوير (بحد أقصى 3) لمنع الخطأ 220094.
+    """
+    if not content:
+        return content
+        
+    # البحث عن الهاشتاجات باستخدام التعبير النمطي
+    hashtags = re.findall(r'#[\w_]+', content)
+    
+    if len(hashtags) <= max_hashtags:
+        return content
+        
+    print(f"[!] تحذير: عدد الهاشتاجات ({len(hashtags)}) يتجاوز الحد المسموح به ({max_hashtags}). جاري تقليصها إلى {max_hashtags}...")
+    
+    # الهاشتاجات الإضافية التي سيتم حذفها
+    extra_hashtags = hashtags[max_hashtags:]
+    
+    # حذف الهاشتاجات الزائدة من النص
+    for ht in extra_hashtags:
+        content = content.replace(ht, "").strip()
+        
+    # إزالة الفراغات المكررة
+    content = re.sub(r' +', ' ', content)
+    return content
+
 def enforce_length_limit(content, max_chars=400):
     """
     التأكد من أن المنشور لا يتجاوز الحد الأقصى للحروف على بايننس سكوير.
@@ -1026,6 +1052,9 @@ def post_to_binance_square(content):
     if not BINANCE_SQUARE_API_KEY:
         print("[-] خطأ: مفتاح BINANCE_SQUARE_API_KEY غير موجود في ملف .env")
         sys.exit(1)
+        
+    # تقليص الهاشتاجات الزائدة لمنع الخطأ 220094
+    content = prune_hashtags(content, max_hashtags=3)
         
     print("[*] جاري نشر المنشور على Binance Square...")
     url = "https://www.binance.com/bapi/composite/v1/public/pgc/openApi/content/add"
