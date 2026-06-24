@@ -2,6 +2,7 @@ import os
 import time
 import threading
 import requests
+import json
 from dotenv import load_dotenv
 
 # تحميل متغيرات البيئة
@@ -59,6 +60,40 @@ def handle_message(text, url, chat_id):
         except Exception as e:
             print(f"[-] خطأ أثناء إرسال رد تلغرام: {e}")
 
+    def send_reply_with_photo_if_exists(content, success, target_type):
+        chart_path = os.path.join(os.path.dirname(__file__), "latest_chart.png")
+        
+        # إعداد نص الرسالة
+        status_header = "✅ تم النشر بنجاح على Binance Square!" if success else "❌ فشل النشر على Binance Square. تأكد من صلاحية المفاتيح."
+        full_message = f"{status_header}\n\n📝 **المنشور المرفوع ({target_type}):**\n{content}"
+        
+        if os.path.exists(chart_path):
+            try:
+                # إرسال الصورة مع النص كـ Caption
+                with open(chart_path, "rb") as photo:
+                    files = {"photo": photo}
+                    data = {
+                        "chat_id": chat_id,
+                        "caption": full_message[:1024],
+                        "reply_markup": json.dumps(KEYBOARD_MARKUP)
+                    }
+                    res = requests.post(f"{url}/sendPhoto", data=data, files=files, timeout=20)
+                    res.raise_for_status()
+                # حذف الصورة المؤقتة بعد الإرسال
+                os.remove(chart_path)
+                print("[+] تم إرسال الصورة والمخطط بنجاح إلى تلغرام.")
+                return
+            except Exception as e:
+                print(f"[-] فشل إرسال الصورة إلى تلغرام ({e}). سيتم إرسال النص فقط...")
+                if os.path.exists(chart_path):
+                    try:
+                        os.remove(chart_path)
+                    except Exception:
+                        pass
+        
+        # في حال عدم وجود صورة أو فشل إرسالها، نرسل النص كالمعتاد
+        send_reply(full_message)
+
     # التحقق من حالة المستخدم لانتظار إدخال عملة
     if USER_STATES.get(chat_id) == "awaiting_coin_symbol":
         # إذا كتب المستخدم أمراً آخر أو زر من الكيبورد، نقوم بإلغاء الحالة ومعالجة الأمر الجديد
@@ -78,10 +113,7 @@ def handle_message(text, url, chat_id):
                         return
                         
                     success = post_to_binance_square(content)
-                    if success:
-                        send_reply(f"✅ تم النشر بنجاح لـ {coin_symbol} على Binance Square!\n\n📝 **المنشور المرفوع:**\n{content}")
-                    else:
-                        send_reply(f"❌ فشل النشر لـ {coin_symbol} على Binance Square. تأكد من صلاحية المفاتيح.\n\n📝 **المحتوى:**\n{content}")
+                    send_reply_with_photo_if_exists(content, success, f"coin_analysis {coin_symbol}")
                 except Exception as ex:
                     send_reply(f"❌ حدث خطأ غير متوقع: {ex}")
                     
@@ -193,12 +225,8 @@ def handle_message(text, url, chat_id):
                     send_reply("❌ فشل توليد أو جلب المنشور. تأكد من صلاحية الاتصال بالسيرفر والـ API.")
                     return
                     
-                # النشر على بينانس سكوير
                 success = post_to_binance_square(content)
-                if success:
-                    send_reply(f"✅ تم النشر بنجاح على Binance Square!\n\n📝 **المنشور المرفوع ({target_type}):**\n{content}")
-                else:
-                    send_reply(f"❌ فشل النشر على Binance Square. تأكد من صلاحية المفاتيح.\n\n📝 **المحتوى المتولد:**\n{content}")
+                send_reply_with_photo_if_exists(content, success, target_type)
             except Exception as ex:
                 send_reply(f"❌ حدث خطأ غير متوقع: {ex}")
                 

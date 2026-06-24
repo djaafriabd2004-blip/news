@@ -545,6 +545,29 @@ def format_ticker_for_scan(symbol):
     clean = symbol.replace("-USDT", "").replace("-USD", "").replace("USDT", "").replace("USDC", "").strip()
     return f"{clean}-USD"
 
+import base64
+
+def save_base64_chart(chart_b64):
+    """
+    تحويل الصورة المشفرة بترميز Base64 وحفظها كملف مؤقت latest_chart.png.
+    """
+    if not chart_b64:
+        return False
+    try:
+        # إزالة البادئة إذا وجدت (مثل data:image/png;base64,)
+        if "," in chart_b64:
+            chart_b64 = chart_b64.split(",", 1)[1]
+        
+        img_data = base64.b64decode(chart_b64)
+        chart_file = os.path.join(os.path.dirname(__file__), "latest_chart.png")
+        with open(chart_file, "wb") as f:
+            f.write(img_data)
+        print(f"[+] تم حفظ صورة المخطط البياني بنجاح في {chart_file}")
+        return True
+    except Exception as e:
+        print(f"[-] فشل فك تشفير وحفظ صورة المخطط البياني: {e}")
+        return False
+
 def scan_coin(ticker, timeframe="1d"):
     """
     إجراء تحليل فني فوري وشامل لعملة محددة من خلال واجهة البوت مع كتابة سجلات تفصيلية للتشخيص.
@@ -565,7 +588,13 @@ def scan_coin(ticker, timeframe="1d"):
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url} with params {params}. Status Code: {response.status_code}\n")
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        
+        # حفظ المخطط البياني إذا وجد بترميز Base64
+        if isinstance(data, dict) and data.get("chart_image"):
+            save_base64_chart(data["chart_image"])
+            
+        return data
     except Exception as e:
         # تسجيل الخطأ بالتفصيل في ملف اللوغ
         err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url} with params {params}. Exception: {e}\n"
@@ -718,16 +747,21 @@ def get_explosion_opportunity_post():
                     coins_list = val
                     break
         
-        valid_posts = []
+        valid_items = []
         for item in coins_list:
             if isinstance(item, dict) and item.get("binance_post"):
-                valid_posts.append(item["binance_post"].strip())
+                valid_items.append(item)
                 
-        if valid_posts:
-            # نختار أحد المنشورات عشوائياً
-            selected_post = random.choice(valid_posts)
-            print(f"[+] تم العثور على {len(valid_posts)} منشورات جاهزة لفرص الانفجار. تم اختيار واحد عشوائياً.")
-            return selected_post
+        if valid_items:
+            # نختار أحد العناصر عشوائياً
+            selected_item = random.choice(valid_items)
+            print(f"[+] تم العثور على {len(valid_items)} فرص انفجار جاهزة. تم اختيار واحدة عشوائياً.")
+            
+            # حفظ المخطط البياني المرفق إن وجد
+            if selected_item.get("chart_image"):
+                save_base64_chart(selected_item["chart_image"])
+                
+            return selected_item["binance_post"].strip()
             
         print("[-] لم يتم العثور على أي منشور جاهز (binance_post) في استجابة فرص الانفجار.")
         return None
@@ -758,7 +792,13 @@ def get_btc_market_status():
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url}. Status Code: {response.status_code}\n")
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        
+        # حفظ المخطط البياني للبيتكوين إذا وجد بترميز Base64
+        if isinstance(data, dict) and data.get("chart_image"):
+            save_base64_chart(data["chart_image"])
+            
+        return data
     except Exception as e:
         # تسجيل الخطأ بالتفصيل في ملف اللوغ
         err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url}. Exception: {e}\n"
