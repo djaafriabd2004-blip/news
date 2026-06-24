@@ -1214,9 +1214,142 @@ def generate_post_content(post_type, provider=None, ticker=None):
 
     return enforce_length_limit(generated_content, max_chars=400)
 
+def upload_image_to_binance(image_path):
+    """
+    رفع صورة إلى Binance Square باستخدام سير العمل v2:
+    1. طلب presigned URL والحصول على fileTicket
+    2. رفع الصورة عبر PUT إلى presigned URL
+    3. استطلاع حالة الصورة حتى تصبح جاهزة
+    يُرجع imageUrl عند النجاح أو None عند الفشل.
+    """
+    if not BINANCE_SQUARE_API_KEY:
+        print("[-] لا يمكن رفع الصورة: مفتاح BINANCE_SQUARE_API_KEY غير موجود.")
+        return None
+    
+    if not os.path.exists(image_path):
+        print(f"[-] ملف الصورة غير موجود: {image_path}")
+        return None
+    
+    log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
+    
+    headers_json = {
+        "X-Square-OpenAPI-Key": BINANCE_SQUARE_API_KEY,
+        "Content-Type": "application/json",
+        "clienttype": "binanceSkill"
+    }
+    
+    # --- الخطوة 1: طلب presigned URL ---
+    image_name = os.path.basename(image_path)
+    presigned_url_endpoint = "https://www.binance.com/bapi/composite/v2/public/pgc/openApi/image/presignedUrl"
+    
+    try:
+        print(f"[*] الخطوة 1: طلب رابط الرفع المسبق للصورة ({image_name})...")
+        res1 = requests.post(
+            presigned_url_endpoint,
+            headers=headers_json,
+            json={"imageName": image_name},
+            timeout=15
+        )
+        res1.raise_for_status()
+        result1 = res1.json()
+        
+        if result1.get("code") != "000000" or not result1.get("data"):
+            err = f"فشل طلب presigned URL: code={result1.get('code')}, message={result1.get('message')}"
+            print(f"[-] {err}")
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE IMG PRESIGNED ERROR: {err}\n")
+            return None
+        
+        presigned_url = result1["data"].get("presignedUrl")
+        file_ticket = result1["data"].get("fileTicket")
+        
+        if not presigned_url or not file_ticket:
+            print("[-] لم يتم استلام presignedUrl أو fileTicket من الاستجابة.")
+            return None
+        
+        print(f"[+] تم الحصول على رابط الرفع المسبق و fileTicket بنجاح.")
+        
+    except Exception as e:
+        print(f"[-] خطأ أثناء طلب presigned URL: {e}")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE IMG PRESIGNED EXCEPTION: {e}\n")
+        return None
+    
+    # --- الخطوة 2: رفع الصورة عبر PUT ---
+    try:
+        print("[*] الخطوة 2: رفع الصورة إلى التخزين السحابي...")
+        # تحديد نوع MIME بناءً على الامتداد
+        ext = os.path.splitext(image_path)[1].lower()
+        mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+        content_type = mime_map.get(ext, "image/png")
+        
+        with open(image_path, "rb") as img_file:
+            img_bytes = img_file.read()
+        
+        res2 = requests.put(
+            presigned_url,
+            data=img_bytes,
+            headers={"Content-Type": content_type},
+            timeout=30
+        )
+        res2.raise_for_status()
+        print(f"[+] تم رفع الصورة بنجاح ({len(img_bytes)} بايت).")
+        
+    except Exception as e:
+        print(f"[-] خطأ أثناء رفع الصورة إلى التخزين السحابي: {e}")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE IMG PUT EXCEPTION: {e}\n")
+        return None
+    
+    # --- الخطوة 3: استطلاع حالة الصورة ---
+    image_status_endpoint = "https://www.binance.com/bapi/composite/v2/public/pgc/openApi/image/imageStatus"
+    max_attempts = 10
+    poll_interval = 3  # ثوانٍ
+    
+    try:
+        print("[*] الخطوة 3: انتظار معالجة الصورة...")
+        for attempt in range(1, max_attempts + 1):
+            time.sleep(poll_interval)
+            res3 = requests.post(
+                image_status_endpoint,
+                headers=headers_json,
+                json={"fileTicket": file_ticket},
+                timeout=15
+            )
+            res3.raise_for_status()
+            result3 = res3.json()
+            
+            if result3.get("code") == "000000" and result3.get("data"):
+                status = result3["data"].get("status")
+                image_url = result3["data"].get("imageUrl")
+                
+                if status == 1 and image_url:
+                    print(f"[+] تمت معالجة الصورة بنجاح! (المحاولة {attempt}/{max_attempts})")
+                    print(f"[+] رابط الصورة: {image_url}")
+                    return image_url
+                elif status == 0:
+                    print(f"[*] الصورة قيد المعالجة... (المحاولة {attempt}/{max_attempts})")
+                else:
+                    print(f"[-] حالة غير متوقعة: status={status} (المحاولة {attempt}/{max_attempts})")
+            else:
+                print(f"[-] استجابة غير متوقعة من imageStatus: {result3.get('code')} - {result3.get('message')}")
+        
+        print(f"[-] انتهت مهلة انتظار معالجة الصورة بعد {max_attempts} محاولات.")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE IMG STATUS TIMEOUT: fileTicket={file_ticket}\n")
+        return None
+        
+    except Exception as e:
+        print(f"[-] خطأ أثناء استطلاع حالة الصورة: {e}")
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE IMG STATUS EXCEPTION: {e}\n")
+        return None
+
+
 def post_to_binance_square(content):
     """
     إرسال المنشور إلى منصة Binance Square باستخدام OpenAPI.
+    يتم رفع صورة المخطط البياني (latest_chart.png) تلقائياً إذا كانت موجودة.
     """
     if not BINANCE_SQUARE_API_KEY:
         print("[-] خطأ: مفتاح BINANCE_SQUARE_API_KEY غير موجود في ملف .env")
@@ -1226,6 +1359,20 @@ def post_to_binance_square(content):
     content = prune_hashtags(content, max_hashtags=3)
         
     print("[*] جاري نشر المنشور على Binance Square...")
+    
+    # --- محاولة رفع الصورة إذا كانت موجودة ---
+    chart_path = os.path.join(os.path.dirname(__file__), "latest_chart.png")
+    image_url = None
+    
+    if os.path.exists(chart_path):
+        print("[*] تم اكتشاف صورة مخطط بياني. جاري رفعها إلى Binance Square...")
+        image_url = upload_image_to_binance(chart_path)
+        if image_url:
+            print("[+] تم رفع الصورة بنجاح. سيتم إرفاقها بالمنشور.")
+        else:
+            print("[!] فشل رفع الصورة. سيتم النشر بدون صورة (نص فقط).")
+    
+    # --- إعداد الحمولة ---
     url = "https://www.binance.com/bapi/composite/v1/public/pgc/openApi/content/add"
     
     headers = {
@@ -1238,6 +1385,12 @@ def post_to_binance_square(content):
         "bodyTextOnly": content
     }
     
+    # إضافة الصورة إلى الحمولة إذا تم رفعها بنجاح
+    if image_url:
+        payload["imageList"] = [image_url]
+        payload["contentType"] = 1
+        print(f"[*] المنشور سيتضمن صورة مرفقة: {image_url}")
+    
     log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
     
     try:
@@ -1246,16 +1399,36 @@ def post_to_binance_square(content):
         result = response.json()
         
         if result.get("code") == "000000":
-            print("[+] تم النشر بنجاح على Binance Square! 🎉")
+            img_status = " مع صورة 📸" if image_url else ""
+            print(f"[+] تم النشر بنجاح على Binance Square{img_status}! 🎉")
             if "data" in result:
                 print(f"[+] تفاصيل الاستجابة: {result['data']}")
             return True
         else:
             err_msg = f"[-] فشل النشر. رمز الخطأ: {result.get('code')}, الرسالة: {result.get('message')}"
             print(err_msg)
+            
+            # إذا فشل النشر مع صورة، نحاول بدون صورة كخطة بديلة
+            if image_url:
+                print("[!] محاولة النشر بدون صورة كخطة بديلة...")
+                fallback_payload = {"bodyTextOnly": content}
+                try:
+                    fb_response = requests.post(url, headers=headers, json=fallback_payload, timeout=15)
+                    fb_response.raise_for_status()
+                    fb_result = fb_response.json()
+                    if fb_result.get("code") == "000000":
+                        print("[+] تم النشر بنجاح بدون صورة (خطة بديلة)! 🎉")
+                        if "data" in fb_result:
+                            print(f"[+] تفاصيل الاستجابة: {fb_result['data']}")
+                        return True
+                    else:
+                        print(f"[-] فشلت الخطة البديلة أيضاً: {fb_result.get('code')} - {fb_result.get('message')}")
+                except Exception as fb_e:
+                    print(f"[-] خطأ أثناء الخطة البديلة: {fb_e}")
+            
             # تدوين الخطأ في ملف اللوغ للتشخيص
             with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE ERROR: code={result.get('code')} | message={result.get('message')} | Content length: {len(content)}\n")
+                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] BINANCE ERROR: code={result.get('code')} | message={result.get('message')} | Content length: {len(content)} | Has image: {bool(image_url)}\n")
             return False
             
     except Exception as e:
