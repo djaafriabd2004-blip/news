@@ -20,10 +20,11 @@ USER_STATES = {}
 KEYBOARD_MARKUP = {
     "keyboard": [
         [{"text": "📈 الفرص الصعودية"}, {"text": "📊 تحليل السوق والبيتكوين"}],
-        [{"text": "🔍 تحليل عملة فوري"}, {"text": "📰 آخر الأخبار"}],
+        [{"text": "🔍 تحليل عملة محددة"}, {"text": "🤖 تحليل تلقائي (عشوائي)"}],
         [{"text": "🟢 عملات صاعدة"}, {"text": "🔴 عملات هابطة"}],
-        [{"text": "💡 نصيحة تداول"}, {"text": "🎯 منشور عشوائي"}],
-        [{"text": "🤖 المزود النشط"}, {"text": "🔄 تبديل (Gemini ⇄ Grok)"}]
+        [{"text": "📰 آخر الأخبار"}, {"text": "💡 نصيحة تداول"}],
+        [{"text": "🎯 منشور عشوائي"}, {"text": "🤖 المزود النشط"}],
+        [{"text": "🔄 تبديل (Gemini ⇄ Grok)"}]
     ],
     "resize_keyboard": True,
     "one_time_keyboard": False
@@ -33,7 +34,8 @@ def handle_message(text, url, chat_id):
     # خريطة الأزرار النصية إلى الأوامر الداخلية
     button_mapping = {
         "📊 تحليل السوق والبيتكوين": "/post market_status",
-        "🔍 تحليل عملة فوري": "/post coin_analysis",
+        "🔍 تحليل عملة محددة": "/post coin_analysis_ask",
+        "🤖 تحليل تلقائي (عشوائي)": "/post coin_analysis_random",
         "📈 الفرص الصعودية": "/post opportunities",
         "🟢 عملات صاعدة": "/post gainers",
         "🔴 عملات هابطة": "/post losers",
@@ -157,15 +159,19 @@ def handle_message(text, url, chat_id):
         if len(parts) > 2:
             coin_arg = parts[2].strip().upper()
             
+        # فرز طلبات التحليل المحددة أو التلقائية
+        if post_type == "coin_analysis_ask":
+            USER_STATES[chat_id] = "awaiting_coin_symbol"
+            send_reply("✍️ يرجى كتابة رمز العملة التي تريد فحصها ونشر تحليلها (مثال: SOL, BTC, PEPE):")
+            return
+            
+        if post_type == "coin_analysis_random":
+            post_type = "coin_analysis"
+            coin_arg = None
+            
         valid_types = ["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random"]
         if post_type not in valid_types:
             send_reply(f"❌ نوع غير صالح. الأنواع المتاحة هي:\n{', '.join(valid_types)}")
-            return
-            
-        # إذا طلب العميل coin_analysis ولم يحدد رمز العملة
-        if post_type == "coin_analysis" and not coin_arg:
-            USER_STATES[chat_id] = "awaiting_coin_symbol"
-            send_reply("✍️ يرجى كتابة رمز العملة التي تريد فحصها ونشر تحليلها (مثال: SOL, BTC, PEPE):")
             return
 
         msg_verb = "جلب منشور تحليل جاهز لـ" if (post_type == "coin_analysis" and coin_arg) else "توليد منشور من نوع"
