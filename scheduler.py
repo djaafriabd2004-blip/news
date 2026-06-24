@@ -93,13 +93,85 @@ def get_seconds_until_next_peak():
     delta = next_run - user_now
     return delta.total_seconds(), next_run
 
+import json
+
+COUNTS_FILE = os.path.join(os.path.dirname(__file__), "daily_publish_counts.json")
+
+def load_daily_counts():
+    """
+    قراءة عدادات النشر اليومية من ملف JSON المحلي.
+    """
+    today_str = get_user_local_time().strftime("%Y-%m-%d")
+    default_counts = {"date": today_str, "market_status": 0, "opportunities": 0}
+    if os.path.exists(COUNTS_FILE):
+        try:
+            with open(COUNTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data.get("date") == today_str:
+                    return data
+        except Exception:
+            pass
+    return default_counts
+
+def save_daily_counts(counts):
+    """
+    حفظ عدادات النشر اليومية في ملف JSON المحلي.
+    """
+    try:
+        with open(COUNTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(counts, f, indent=4)
+    except Exception as e:
+        print(f"[-] فشل حفظ عدادات النشر اليومية: {e}")
+
 def check_and_run_poster():
     """
-    تشغيل منشور عادي/عشوائي.
+    تشغيل منشور عادي/عشوائي مع ضمان حصص نشر محددة للمنشورات الهامة.
     """
     print("[*] تشغيل منشور عادي...")
+    
+    current_time = get_user_local_time()
+    hour = current_time.hour
+    
+    # تحميل العدادات اليومية
+    counts = load_daily_counts()
+    
+    target_type = None
+    
+    # منطق توزيع المنشورات على 3 فترات يومية (توقيت الجزائر المحلي):
+    # الفترة الأولى: الصباح (من الساعة 8 إلى 11)
+    if 8 <= hour <= 11:
+        if counts["market_status"] < 1:
+            target_type = "market_status"
+            counts["market_status"] += 1
+        elif counts["opportunities"] < 1:
+            target_type = "opportunities"
+            counts["opportunities"] += 1
+            
+    # الفترة الثانية: بعد الظهر (من الساعة 14 إلى 17)
+    elif 14 <= hour <= 17:
+        if counts["market_status"] < 2:
+            target_type = "market_status"
+            counts["market_status"] += 1
+        elif counts["opportunities"] < 2:
+            target_type = "opportunities"
+            counts["opportunities"] += 1
+            
+    # الفترة الثالثة: المساء (من الساعة 20 إلى 23)
+    elif 20 <= hour <= 23:
+        if counts["market_status"] < 3:
+            target_type = "market_status"
+            counts["market_status"] += 1
+        elif counts["opportunities"] < 3:
+            target_type = "opportunities"
+            counts["opportunities"] += 1
+
+    # إذا تم تحديد نوع مستهدف لتلبية الحصة اليومية، نقوم بتحديث العدادات وحفظها
+    if target_type:
+        save_daily_counts(counts)
+        print(f"[+] تم تحديد منشور مستهدف لتلبية الحصة اليومية: [{target_type}]. العدادات الحالية: {counts}")
+    
     try:
-        run_poster()
+        run_poster(override_type=target_type)
         print("[+] اكتملت عملية النشر العادية بنجاح.")
     except Exception as e:
         print(f"[-] خطأ أثناء تشغيل عملية النشر العادية: {e}")
