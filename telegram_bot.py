@@ -129,7 +129,7 @@ def handle_message(text, url, chat_id):
             "الأنواع المتاحة: `gainers`, `losers`, `alpha`, `news`, `tips`, `opportunities`, `market_status`, `coin_analysis`, `random`.\n\n"
             "الخيار 2: كتابة ونشر منشور يدوي خاص بك:\n"
             "أرسل: `/write <نص المنشور>`\n"
-            "سيقوم البوت بمراجعته وقصه إذا تجاوز الطول (400 حرف) ونشره فوراً.\n\n"
+            "سيقوم البوت بمراجعته وقصه إذا تجاوز الطول (1000 حرف) ونشره فوراً.\n\n"
             "الخيار 3: إدارة مزود الذكاء الاصطناعي:\n"
             "- لمعرفة المزود الحالي: أرسل `/provider` أو اضغط زر '🤖 المزود النشط'\n"
             "- للتبديل بين جمناي وغروك: اضغط زر '🔄 تبديل (Gemini ⇄ Grok)'\n"
@@ -242,9 +242,9 @@ def handle_message(text, url, chat_id):
             
         user_content = parts[1].strip()
         # فحص وتقصير الطول بشكل آمن
-        processed_content = enforce_length_limit(user_content, max_chars=400)
+        processed_content = enforce_length_limit(user_content, max_chars=1000)
         
-        if len(user_content) > 400:
+        if len(user_content) > 1000:
             send_reply(f"⚠️ النص طويل جداً ({len(user_content)} حرف). تم تقليمه تلقائياً إلى الحد الآمن:\n\n{processed_content}")
             
         send_reply("⏳ جاري رفع ونشر المنشور اليدوي على Binance Square...")

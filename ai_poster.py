@@ -686,7 +686,7 @@ def prune_hashtags(content, max_hashtags=3):
     content = re.sub(r' +', ' ', content)
     return content
 
-def enforce_length_limit(content, max_chars=400):
+def enforce_length_limit(content, max_chars=1000):
     """
     التأكد من أن المنشور لا يتجاوز الحد الأقصى للحروف على بايننس سكوير.
     يتم قطع النص بشكل ذكي عند آخر علامة ترقيم أو فراغ لمنع تشويه الكلمات.
@@ -1254,7 +1254,7 @@ def generate_post_content(post_type, provider=None, ticker=None):
         print("[-] خطأ: فشل التوليد باستخدام جميع المزودين المتاحين!")
         return None
 
-    return enforce_length_limit(generated_content, max_chars=400)
+    return enforce_length_limit(generated_content, max_chars=1000)
 
 def upload_image_to_binance(image_path):
     """
