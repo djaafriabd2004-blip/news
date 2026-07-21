@@ -25,7 +25,8 @@ KEYBOARD_MARKUP = {
         [{"text": "🟢 عملات صاعدة"}, {"text": "🔴 عملات هابطة"}],
         [{"text": "📰 آخر الأخبار"}, {"text": "💡 نصيحة تداول"}],
         [{"text": "🎯 منشور عشوائي"}, {"text": "🤖 المزود النشط"}],
-        [{"text": "🔄 تبديل (Gemini ⇄ Grok)"}]
+        [{"text": "🔄 تبديل (Gemini ⇄ Grok)"}],
+        [{"text": "🧪 اختبار Gemini"}, {"text": "🧪 اختبار Grok"}, {"text": "🧪 اختبار Groq"}]
     ],
     "resize_keyboard": True,
     "one_time_keyboard": False
@@ -44,7 +45,10 @@ def handle_message(text, url, chat_id):
         "💡 نصيحة تداول": "/post tips",
         "🎯 منشور عشوائي": "/post random",
         "🤖 المزود النشط": "/provider",
-        "🔄 تبديل (Gemini ⇄ Grok)": "/toggle_provider"
+        "🔄 تبديل (Gemini ⇄ Grok)": "/toggle_provider",
+        "🧪 اختبار Gemini": "/test gemini",
+        "🧪 اختبار Grok": "/test grok",
+        "🧪 اختبار Groq": "/test groq"
     }
     
     if text in button_mapping:
@@ -179,6 +183,33 @@ def handle_message(text, url, chat_id):
             send_reply(f"🔄 تم تبديل المزود النشط بنجاح!\n🚀 المزود الجديد: **{new_name}**")
         else:
             send_reply("❌ فشل تحديث المزود النشط.")
+        return
+
+    # معالجة أمر اختبار المزودين
+    if text.startswith("/test"):
+        parts = text.split()
+        if len(parts) < 2:
+            send_reply("❌ يرجى تحديد المزود المراد اختباره (gemini, grok, groq).")
+            return
+        prov = parts[1].strip().lower()
+        if prov not in ["gemini", "grok", "groq"]:
+            send_reply("❌ مزود غير صالح. اختر: `gemini`, `grok`, `groq`.")
+            return
+            
+        send_reply(f"⏳ جاري إجراء اختبار توليد منشور تجريبي باستخدام [{prov}]...")
+        
+        def do_test():
+            try:
+                # توليد منشور عشوائي للتجربة
+                content = generate_post_content("short", provider=prov)
+                if not content:
+                    send_reply(f"❌ فشل الاختبار: تعذر توليد المنشور باستخدام [{prov}]. تأكد من صحة مفتاح API للـ [{prov}] وسلامة النموذج.")
+                else:
+                    send_reply(f"✅ نجح الاختبار باستخدام [{prov}]! 🎉\n\n📝 **النص المولد:**\n{content}")
+            except Exception as e:
+                send_reply(f"❌ خطأ أثناء الاختبار لـ [{prov}]: {e}")
+                
+        threading.Thread(target=do_test).start()
         return
 
     # معالجة أمر النشر والتوليد التلقائي

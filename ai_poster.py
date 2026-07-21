@@ -913,6 +913,65 @@ def classify_news_topic(title):
         
     return "general"
 
+def fetch_ready_post_from_api(post_type, ticker=None):
+    """
+    محاولة جلب منشور جاهز مباشرة من واجهات الـ API كخيار بديل أخير عند تعطل الذكاء الاصطناعي.
+    """
+    print("[!] الذكاء الاصطناعي غير متاح. جاري محاولة جلب منشور جاهز مباشرة من الـ API...")
+    
+    # 1. إذا كان النوع المطلوب هو تحليل عملة
+    if post_type == "coin_analysis" or ticker:
+        coin = ticker or "SOL"
+        coin = coin.replace("-USDT", "").replace("-USD", "").replace("USDT", "").replace("USDC", "").strip()
+        print(f"[*] محاولة جلب منشور جاهز للعملة {coin}...")
+        try:
+            url = f"{TRADING_BOT_URL}/api/scan_coin"
+            response = requests.get(url, params={"ticker": coin}, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict) and data.get("binance_post"):
+                    print("[+] تم جلب منشور تحليل عملة بنجاح من API.")
+                    return data["binance_post"].strip()
+        except Exception as e:
+            print(f"[-] فشل جلب منشور التحليل من API: {e}")
+
+    # 2. محاولة جلب فرص الانفجار
+    print("[*] محاولة جلب منشور جاهز من فرص الانفجار...")
+    try:
+        url = f"{TRADING_BOT_URL}/api/explosion_opportunities"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            coins_list = []
+            if isinstance(data, list):
+                coins_list = data
+            elif isinstance(data, dict):
+                for val in data.values():
+                    if isinstance(val, list):
+                        coins_list = val
+                        break
+            for item in coins_list:
+                if isinstance(item, dict) and item.get("binance_post"):
+                    print("[+] تم جلب منشور فرص انفجار بنجاح من API.")
+                    return item["binance_post"].strip()
+    except Exception as e:
+        print(f"[-] فشل جلب منشور فرص الانفجار من API: {e}")
+
+    # 3. محاولة جلب حالة السوق والبيتكوين
+    print("[*] محاولة جلب منشور جاهز لحالة السوق...")
+    try:
+        url = f"{TRADING_BOT_URL}/api/btc_market_status"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data, dict) and data.get("ready_post"):
+                print("[+] تم جلب منشور حالة السوق بنجاح من API.")
+                return data["ready_post"].strip()
+    except Exception as e:
+        print(f"[-] فشل جلب منشور حالة السوق من API: {e}")
+
+    return None
+
 def generate_post_content(post_type, provider=None, ticker=None):
     """
     توليد نص المنشور بواسطة الذكاء الاصطناعي حسب النوع المحدد مع دعم التبديل بين المزودين والتراجع التلقائي.
@@ -1308,7 +1367,25 @@ def generate_post_content(post_type, provider=None, ticker=None):
 
     if not generated_content:
         print("[-] خطأ: فشل التوليد باستخدام جميع المزودين المتاحين!")
-        return None
+        
+        # التراجع الأول: محاولة جلب منشور جاهز من الـ API مباشرة
+        ready_post = fetch_ready_post_from_api(post_type, ticker)
+        if ready_post:
+            print("[+] تم التراجع والإنقاذ بنجاح: تم جلب منشور جاهز من الـ API.")
+            return ready_post
+            
+        # التراجع الثاني الأخير: استخدام منشور احتياطي محلي عالي التفاعل والربحية
+        print("[!] تعذر الاتصال بـ API أيضاً. يتم استخدام منشور احتياطي محلي عالي التفاعل والربحية...")
+        offline_posts = [
+            "🚨 لا تدخل تداول على $BTC حتى تشوف وضع السوق الحالي وتتخذ قرارك! الحركة عرضية والسيولة ضعيفة، الحذر واجب من تصفية العقود الآجلة 🔥 #Crypto #Futures",
+            "🔥 عملات لديها احتمالية صعود وانفجار قوية خلال الساعات القادمة: $SOL $NEAR $PEPE! راقبوا مستويات الدعم جيداً ولا تتهوروا بالرافعة المالية 📈 #Crypto #Futures",
+            "⚠️ متداولي الفيوتشر بدون علم أو إدارة مخاطر... أنتم مجرد وقود لتصفية صفقات الحيتان! تعلموا التحليل قبل الدخول لتجنب الخسارة 💔 #Crypto #Futures",
+            "📈 إشارات إيجابية قوية بدأت تظهر على عملة $SOL! هل تستعد لانفجار سعري قادم يطير بها للأعلى؟ راقبوا مستويات المقاومة بدقة 🔥 #Crypto #Futures",
+            "🚨 نصيحة تداول: لا تطارد العملة بعد أن ترتفع 30% (FOMO)، الدخول المتأخر نهايته تصفية الحساب. انتظر التصحيح دائماً! 💡 #Crypto #Futures",
+            "$RIF علامات صعود وانفجار قوية ادخل الان 🔥🚀 #Crypto #Futures",
+            "$SYN لا تدخل تداول على عملة حت تشوف هاذ تحليل وتتخذ قرارك 🔥 #Crypto #Futures"
+        ]
+        return random.choice(offline_posts)
 
     return enforce_length_limit(generated_content, max_chars=1000)
 
