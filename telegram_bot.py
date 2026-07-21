@@ -21,7 +21,7 @@ USER_STATES = {}
 KEYBOARD_MARKUP = {
     "keyboard": [
         [{"text": "📈 الفرص الصعودية"}, {"text": "📊 تحليل السوق والبيتكوين"}],
-        [{"text": "🔍 تحليل عملة محددة"}, {"text": "🤖 تحليل تلقائي (عشوائي)"}],
+        [{"text": "🔍 تحليل عملة محددة"}, {"text": "⚡ منشور قصير (مربح)"}],
         [{"text": "🟢 عملات صاعدة"}, {"text": "🔴 عملات هابطة"}],
         [{"text": "📰 آخر الأخبار"}, {"text": "💡 نصيحة تداول"}],
         [{"text": "🎯 منشور عشوائي"}, {"text": "🤖 المزود النشط"}],
@@ -36,7 +36,7 @@ def handle_message(text, url, chat_id):
     button_mapping = {
         "📊 تحليل السوق والبيتكوين": "/post market_status",
         "🔍 تحليل عملة محددة": "/post coin_analysis_ask",
-        "🤖 تحليل تلقائي (عشوائي)": "/post coin_analysis_random",
+        "⚡ منشور قصير (مربح)": "/post short",
         "📈 الفرص الصعودية": "/post opportunities",
         "🟢 عملات صاعدة": "/post gainers",
         "🔴 عملات هابطة": "/post losers",
@@ -126,7 +126,7 @@ def handle_message(text, url, chat_id):
             "📋 **بوت التحكم بنشر Binance Square**\n\n"
             "الخيار 1: توليد ونشر تلقائي بالذكاء الاصطناعي:\n"
             "أرسل `/post <النوع>` لتوليد ونشر منشور فوراً.\n"
-            "الأنواع المتاحة: `gainers`, `losers`, `alpha`, `news`, `tips`, `opportunities`, `market_status`, `coin_analysis`, `random`.\n\n"
+            "الأنواع المتاحة: `gainers`, `losers`, `alpha`, `news`, `tips`, `opportunities`, `market_status`, `coin_analysis`, `random`, `short`.\n\n"
             "الخيار 2: كتابة ونشر منشور يدوي خاص بك:\n"
             "أرسل: `/write <نص المنشور>`\n"
             "سيقوم البوت بمراجعته وقصه إذا تجاوز الطول (1000 حرف) ونشره فوراً.\n\n"
@@ -201,7 +201,7 @@ def handle_message(text, url, chat_id):
             post_type = "coin_analysis"
             coin_arg = None
             
-        valid_types = ["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random"]
+        valid_types = ["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random", "short"]
         if post_type not in valid_types:
             send_reply(f"❌ نوع غير صالح. الأنواع المتاحة هي:\n{', '.join(valid_types)}")
             return
@@ -216,8 +216,8 @@ def handle_message(text, url, chat_id):
                 target_type = post_type
                 if target_type == "random":
                     import random
-                    types = ["gainers", "losers", "alpha", "news", "tips"]
-                    weights = [20, 20, 20, 20, 20]
+                    types = ["gainers", "losers", "alpha", "news", "tips", "short"]
+                    weights = [15, 15, 15, 15, 15, 25]
                     target_type = random.choices(types, weights=weights, k=1)[0]
                 
                 content = generate_post_content(target_type, ticker=coin_arg)

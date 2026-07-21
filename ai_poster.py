@@ -230,6 +230,29 @@ PROMPTS_CONFIG = {
 - أضف تحذيراً مختصراً من المخاطر.
 - اختم بسؤال تفاعلي يحفز التعليقات.
 - 2-3 هاشتاجات في النهاية.
+""",
+
+    "short": """
+اكتب منشوراً واحداً قصيراً جداً ومربحاً (سطر أو سطرين كحد أقصى) لـ Binance Square، يحاكي تماماً أسلوب المتداولين الحقيقيين عالي التفاعل والربحية.
+
+يجب أن تختار عشوائياً واحداً من هذه الأساليب الخمسة المحددة للكتابة:
+
+1. أسلوب التنبيه الحماسي السريع لعملة معينة (مثال: RIF$ علامات صعود وانفجار قوية ادخل الان 🔥🔥).
+2. أسلوب السخرية والواقعية عن نمو الحسابات أو خسارتها بلهجة فكاهية (مثال: بديت ب 8 دولار والان صار فحسابي 20302 دولار هذا هو منشور الى لما تشوفو تروح تتداول وتتصفى بعدها 😂💔).
+3. أسلوب التحذير والنصيحة القاسية عن عقود الفيوتشر (مثال: AGT$ اذا دخلت فيوتشر بدون علم بتحليل او اي خبرة فانت مجرد وقود لتصفيفة ستربح مرة او مرتين ولكن نهايتك تتصفى...).
+4. أسلوب قائمة المراقبة السريعة لـ 2-3 عملات (مثال: عملات لديها احتمالية صعود كبيرة WLD $ZEC $NEAR$ 🔥).
+5. أسلوب التنبيه والوقوف الحاسم لعملة معينة (مثال: SYN$ لا تدخل تداول على عملة حت تشوف هاذ تحليل وتتخذ قرارك 🔥).
+
+المعطيات المتاحة للمساعدة (تأكد أن العملة أو العملات التي تذكرها هي من هذه القائمة لعملات السوق الرائجة والمرتفعة حالياً لضمان تفاعل القراء):
+- العملات الرائجة والصاعدة حالياً: {coins_text}
+- العملة الصاعدة المقترحة: ${ticker}
+
+الشروط الصارمة:
+- الحد الأقصى للطول: سطرين فقط (لا يتجاوز 150 حرفاً).
+- الأسلوب: عامية بيضاء مباشرة ومثيرة للحماس.
+- الرموز: استخدم علامة $ لرموز العملات (مثال: $RIF أو RIF$).
+- يمنع استخدام كلمة "والله" أو أي صيغة قسم.
+- لا تذكر كلمة "بوت" أو "برنامج" أو "تلقائي".
 """
 }
 
@@ -1191,6 +1214,26 @@ def generate_post_content(post_type, provider=None, ticker=None):
             indicators_text=indicators_text
         )
 
+    elif post_type == "short":
+        # جلب بعض العملات الرائجة/الصاعدة لإعطاء الذكاء الاصطناعي سياقاً حياً
+        try:
+            gainers = get_trending_futures(limit=5)
+            gainers_symbols = [g["symbol"].replace("USDT", "").replace("USD", "").strip() for g in gainers]
+            coins_text = ", ".join([f"${s}" for s in gainers_symbols])
+        except Exception:
+            coins_text = "$SOL, $PEPE, $WLD, $SYN, $NEAR"
+            gainers_symbols = ["SOL", "NEAR", "PEPE", "TON", "RENDER", "SUI"]
+            
+        chosen_ticker = ticker or ""
+        if not chosen_ticker:
+            try:
+                chosen_ticker = random.choice(gainers_symbols)
+            except Exception:
+                chosen_ticker = random.choice(["SOL", "NEAR", "PEPE", "TON", "RENDER", "SUI"])
+                
+        chosen_ticker = chosen_ticker.replace("$", "").strip()
+        prompt = PROMPTS_CONFIG["short"].format(coins_text=coins_text, ticker=chosen_ticker)
+
     # تحديد ترتيب المحاولة للمزودين لضمان التراجع التلقائي (Fallback)
     providers_order = [selected_provider]
     for p in ["gemini", "groq", "grok"]:
@@ -1483,7 +1526,7 @@ def main(override_type=None, override_provider=None):
     )
     parser.add_argument(
         "--type",
-        choices=["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random"],
+        choices=["gainers", "losers", "news", "tips", "alpha", "opportunities", "market_status", "coin_analysis", "random", "short"],
         default="random",
         help="نوع المحتوى المراد توليده ونشره (الافتراضي: اختيار عشوائي لتنويع المنشورات)"
     )
@@ -1503,9 +1546,9 @@ def main(override_type=None, override_provider=None):
     # تحديد نوع المنشور
     post_type = override_type or args.type
     if post_type == "random":
-        # النشر الدوري العشوائي يقتصر على الأنواع العامة فقط
-        types = ["gainers", "losers", "alpha", "news", "tips"]
-        weights = [20, 20, 20, 20, 20]
+        # النشر الدوري العشوائي يشتمل على المنشورات القصيرة أيضاً
+        types = ["gainers", "losers", "alpha", "news", "tips", "short"]
+        weights = [15, 15, 15, 15, 15, 25]
         post_type = random.choices(types, weights=weights, k=1)[0]
         print(f"[*] تم اختيار نوع المنشور عشوائياً بوزن نسبي: [{post_type}] لتنويع المحتوى.")
         
