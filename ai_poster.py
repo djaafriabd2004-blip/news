@@ -1575,11 +1575,12 @@ def main(override_type=None, override_provider=None):
     # النشر أو الاكتفاء بالمعاينة
     if args.dry_run:
         print("[*] تم التشغيل في وضع المعاينة (Dry-Run). لم يتم إرسال المنشور إلى بينانس.")
+        return True
     else:
         if not BINANCE_SQUARE_API_KEY:
             print("[!] تحذير: مفتاح BINANCE_SQUARE_API_KEY غير معين. يمكنك معاينة المنشور فقط.")
-            return
-        post_to_binance_square(post_content)
+            return False
+        return post_to_binance_square(post_content)
 
 if __name__ == "__main__":
     main()
