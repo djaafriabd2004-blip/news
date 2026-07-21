@@ -1269,23 +1269,42 @@ def generate_post_content(post_type, provider=None, ticker=None):
             # تخطي المزود لو مفتاح الوصول غير متوفر
             continue
 
-        print(f"[*] جاري محاولة التوليد باستخدام [{provider_names[p]}] (النموذج: {model})...")
-        try:
-            client = OpenAI(api_key=api_key, base_url=base_url)
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": VETERAN_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.75
-            )
-            generated_content = response.choices[0].message.content
-            if generated_content:
-                print(f"[+] تم توليد المحتوى بنجاح باستخدام [{provider_names[p]}].")
-                break
-        except Exception as e:
-            print(f"[-] فشل استخدام [{provider_names[p]}]: {e}. سيتم الانتقال للبديل المتاح...")
+        models_to_try = [model]
+        if p == "gemini":
+            models_to_try.extend(["gemini-2.0-flash", "gemini-1.5-flash"])
+        elif p == "groq":
+            models_to_try.extend(["llama-3.3-70b-versatile", "llama3-70b-8192"])
+        elif p == "grok":
+            models_to_try.extend(["grok-2", "grok-beta", "grok-4.5"])
+
+        success = False
+        for current_model in models_to_try:
+            if not current_model:
+                continue
+            print(f"[*] جاري محاولة التوليد باستخدام [{provider_names[p]}] (النموذج: {current_model})...")
+            try:
+                client = OpenAI(api_key=api_key, base_url=base_url)
+                response = client.chat.completions.create(
+                    model=current_model,
+                    messages=[
+                        {"role": "system", "content": VETERAN_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.75
+                )
+                generated_content = response.choices[0].message.content
+                if generated_content:
+                    print(f"[+] تم توليد المحتوى بنجاح باستخدام [{provider_names[p]}] (النموذج: {current_model}).")
+                    success = True
+                    break
+            except Exception as e:
+                print(f"[-] فشل استخدام [{provider_names[p]}] مع النموذج {current_model}: {e}")
+                if p == "gemini" and "429" in str(e):
+                    print("[-] تم رصد استنفاد الحصة لـ Gemini. تخطي المحاولات البديلة له.")
+                    break
+        
+        if success:
+            break
 
     if not generated_content:
         print("[-] خطأ: فشل التوليد باستخدام جميع المزودين المتاحين!")
