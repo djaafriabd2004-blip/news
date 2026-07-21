@@ -29,7 +29,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 XAI_API_KEY = os.getenv("XAI_API_KEY")
-GROK_MODEL = os.getenv("GROK_MODEL", "grok-2-latest")
+GROK_MODEL = os.getenv("GROK_MODEL", "grok-2")
 
 # تفعيل التخزين المحلي للمزود النشط
 def get_active_provider():
@@ -721,7 +721,9 @@ def enforce_length_limit(content, max_chars=1000):
         
     return truncated.strip() + "... #العملات_الرقمية"
 
-TRADING_BOT_URL = os.getenv("TRADING_BOT_URL", "https://worker-production-d1ab.up.railway.app")
+TRADING_BOT_URL = os.getenv("TRADING_BOT_URL", "https://worker-production-d1ab.up.railway.app").strip()
+if TRADING_BOT_URL and not TRADING_BOT_URL.startswith(("http://", "https://")):
+    TRADING_BOT_URL = f"https://{TRADING_BOT_URL}"
 
 def get_bot_status():
     """
