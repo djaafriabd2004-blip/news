@@ -1657,9 +1657,9 @@ def main(override_type=None, override_provider=None):
     # تحديد نوع المنشور
     post_type = override_type or args.type
     if post_type == "random":
-        # زيادة نسبة اختيار منشورات التحليل المباشر وفرص الانفجار المربحة لتشكل غالبية المنشورات
-        types = ["coin_analysis", "opportunities", "short", "gainers", "losers", "news", "tips"]
-        weights = [40, 30, 15, 5, 5, 3, 2]
+        # الاعتماد حصرياً على منشورات الـ API المباشرة والمنشورات القصيرة المربحة
+        types = ["coin_analysis", "opportunities", "short", "market_status"]
+        weights = [45, 35, 12, 8]
         post_type = random.choices(types, weights=weights, k=1)[0]
         print(f"[*] تم اختيار نوع المنشور عشوائياً بوزن نسبي: [{post_type}] لتنويع المحتوى.")
         
