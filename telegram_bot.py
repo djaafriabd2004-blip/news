@@ -247,8 +247,8 @@ def handle_message(text, url, chat_id):
                 target_type = post_type
                 if target_type == "random":
                     import random
-                    types = ["gainers", "losers", "alpha", "news", "tips", "short"]
-                    weights = [15, 15, 15, 15, 15, 25]
+                    types = ["coin_analysis", "opportunities", "short", "gainers", "losers", "news", "tips"]
+                    weights = [40, 30, 15, 5, 5, 3, 2]
                     target_type = random.choices(types, weights=weights, k=1)[0]
                 
                 content = generate_post_content(target_type, ticker=coin_arg)
