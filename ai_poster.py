@@ -736,7 +736,7 @@ def enforce_length_limit(content, max_chars=1000):
         
     return truncated.strip() + "... #العملات_الرقمية"
 
-TRADING_BOT_URL = os.getenv("TRADING_BOT_URL", "https://worker-production-d1ab.up.railway.app").strip()
+TRADING_BOT_URL = os.getenv("TRADING_BOT_URL", "https://worker-production-5bca.up.railway.app").strip()
 if TRADING_BOT_URL and not TRADING_BOT_URL.startswith(("http://", "https://")):
     TRADING_BOT_URL = f"https://{TRADING_BOT_URL}"
 
