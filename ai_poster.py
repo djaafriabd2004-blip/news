@@ -20,6 +20,7 @@ if sys.platform.startswith("win"):
 load_dotenv()
 
 BINANCE_SQUARE_API_KEY = os.getenv("BINANCE_SQUARE_API_KEY")
+DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "admin123").strip()
 
 # قراءة مفاتيح الوصول لجميع مزودي الخدمة
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -625,7 +626,7 @@ def save_base64_chart(chart_b64):
         print(f"[-] فشل فك تشفير وحفظ صورة المخطط البياني: {e}")
         return False
 
-def scan_coin(ticker, timeframe="1d"):
+def scan_coin(ticker, timeframe="1d", short=False):
     """
     إجراء تحليل فني فوري وشامل لعملة محددة من خلال واجهة البوت مع كتابة سجلات تفصيلية للتشخيص.
     """
@@ -634,7 +635,9 @@ def scan_coin(ticker, timeframe="1d"):
     url = f"{TRADING_BOT_URL}/api/scan_coin"
     params = {
         "ticker": formatted_ticker,
-        "timeframe": timeframe
+        "timeframe": timeframe,
+        "password": DASHBOARD_PASSWORD,
+        "short": "true" if short else "false"
     }
     
     log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
@@ -747,7 +750,7 @@ def get_bot_status():
     print("[*] جاري جلب حالة صفقات بوت التداول...")
     url = f"{TRADING_BOT_URL}/api/status"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params={"password": DASHBOARD_PASSWORD}, timeout=10)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -769,7 +772,7 @@ def get_bullish_opportunities():
     print("[*] جاري جلب الفرص الصعودية من البوت...")
     url = f"{TRADING_BOT_URL}/api/bullish_opportunities"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params={"password": DASHBOARD_PASSWORD}, timeout=10)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -780,18 +783,22 @@ def get_bullish_opportunities():
             {"ticker": "TON-USDT", "entry_price": 7.10, "targets": [7.60, 8.10], "stop_loss": 6.80, "confidence": 91}
         ]
 
-def get_explosion_opportunity_post():
+def get_explosion_opportunity_post(short=False):
     """
     جلب المنشورات الجاهزة لفرص الانفجار من البوت واختيار منشور عشوائي.
     """
     print("[*] جاري جلب فرص الانفجار والمنشورات الجاهزة...")
     url = f"{TRADING_BOT_URL}/api/explosion_opportunities"
     log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
+    params = {
+        "password": DASHBOARD_PASSWORD,
+        "short": "true" if short else "false"
+    }
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         # تسجيل المحاولة الناجحة في ملف اللوغ
         with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url}. Status Code: {response.status_code}\n")
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url} with params {params}. Status Code: {response.status_code}\n")
         response.raise_for_status()
         data = response.json()
         
@@ -826,7 +833,7 @@ def get_explosion_opportunity_post():
         return None
     except Exception as e:
         # تسجيل الخطأ بالتفصيل في ملف اللوغ
-        err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url}. Exception: {e}\n"
+        err_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: Failed calling {url} with params {params}. Exception: {e}\n"
         if 'response' in locals() and response is not None:
             err_msg += f"Status Code: {response.status_code} | Response: {response.text}\n"
         try:
@@ -838,18 +845,22 @@ def get_explosion_opportunity_post():
         print(f"[-] فشل جلب منشورات فرص الانفجار من الـ API ({e}).")
         return None
 
-def get_btc_market_status():
+def get_btc_market_status(short=False):
     """
     جلب حالة السوق والبيتكوين والمؤشرات الفنية من البوت.
     """
     print("[*] جاري جلب حالة سوق البيتكوين والمؤشرات...")
     url = f"{TRADING_BOT_URL}/api/btc_market_status"
     log_file = os.path.join(os.path.dirname(__file__), "api_debug.log")
+    params = {
+        "password": DASHBOARD_PASSWORD,
+        "short": "true" if short else "false"
+    }
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         # تسجيل المحاولة الناجحة في ملف اللوغ
         with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url}. Status Code: {response.status_code}\n")
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] SUCCESS: Called {url} with params {params}. Status Code: {response.status_code}\n")
         response.raise_for_status()
         data = response.json()
         
@@ -919,14 +930,18 @@ def fetch_ready_post_from_api(post_type, ticker=None):
     """
     print("[!] الذكاء الاصطناعي غير متاح. جاري محاولة جلب منشور جاهز مباشرة من الـ API...")
     
+    # تحديد إذا كان المطلوب هو التنسيق القصير
+    is_short_requested = (post_type == "short")
+    short_val = "true" if is_short_requested else "false"
+    
     # 1. إذا كان النوع المطلوب هو تحليل عملة
-    if post_type == "coin_analysis" or ticker:
+    if post_type == "coin_analysis" or post_type == "short" or ticker:
         coin = ticker or "SOL"
         coin = coin.replace("-USDT", "").replace("-USD", "").replace("USDT", "").replace("USDC", "").strip()
-        print(f"[*] محاولة جلب منشور جاهز للعملة {coin}...")
+        print(f"[*] محاولة جلب منشور جاهز للعملة {coin} (short={short_val})...")
         try:
             url = f"{TRADING_BOT_URL}/api/scan_coin"
-            response = requests.get(url, params={"ticker": coin}, timeout=10)
+            response = requests.get(url, params={"ticker": coin, "password": DASHBOARD_PASSWORD, "short": short_val}, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, dict) and data.get("binance_post"):
@@ -936,10 +951,10 @@ def fetch_ready_post_from_api(post_type, ticker=None):
             print(f"[-] فشل جلب منشور التحليل من API: {e}")
 
     # 2. محاولة جلب فرص الانفجار
-    print("[*] محاولة جلب منشور جاهز من فرص الانفجار...")
+    print(f"[*] محاولة جلب منشور جاهز من فرص الانفجار (short={short_val})...")
     try:
         url = f"{TRADING_BOT_URL}/api/explosion_opportunities"
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params={"password": DASHBOARD_PASSWORD, "short": short_val}, timeout=10)
         if response.status_code == 200:
             data = response.json()
             coins_list = []
@@ -958,10 +973,10 @@ def fetch_ready_post_from_api(post_type, ticker=None):
         print(f"[-] فشل جلب منشور فرص الانفجار من API: {e}")
 
     # 3. محاولة جلب حالة السوق والبيتكوين
-    print("[*] محاولة جلب منشور جاهز لحالة السوق...")
+    print(f"[*] محاولة جلب منشور جاهز لحالة السوق (short={short_val})...")
     try:
         url = f"{TRADING_BOT_URL}/api/btc_market_status"
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params={"password": DASHBOARD_PASSWORD, "short": short_val}, timeout=10)
         if response.status_code == 200:
             data = response.json()
             if isinstance(data, dict) and data.get("ready_post"):
